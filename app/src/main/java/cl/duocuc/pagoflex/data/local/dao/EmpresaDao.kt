@@ -12,6 +12,9 @@ interface EmpresaDao {
     @Query("SELECT * FROM empresa_cliente")
     fun getAllEmpresas(): Flow<List<EmpresaEntity>>
 
+    @Query("SELECT * FROM empresa_cliente")
+    suspend fun getAllEmpresasOnce(): List<EmpresaEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertEmpresas(empresas: List<EmpresaEntity>)
 }

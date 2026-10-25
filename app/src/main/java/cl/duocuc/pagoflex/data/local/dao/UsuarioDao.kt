@@ -15,6 +15,12 @@ interface UsuarioDao {
     @Query("SELECT * FROM usuario")
     fun getAllUsuarios(): Flow<List<UsuarioEntity>>
 
+    @Query("SELECT * FROM usuario")
+    suspend fun getAllUsuariosOnce(): List<UsuarioEntity>
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertUsuario(usuario: UsuarioEntity)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertUsuarios(usuarios: List<UsuarioEntity>)
 

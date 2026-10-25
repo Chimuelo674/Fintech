@@ -8,6 +8,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.compose.ui.platform.LocalContext
+import cl.duocuc.pagoflex.avisos.AvisosPrefs
 import cl.duocuc.pagoflex.repository.PagoFlexRepository
 import cl.duocuc.pagoflex.ui.agente.AgenteDashboardScreen
 import cl.duocuc.pagoflex.ui.ejecutivo.EjecutivoDashboardScreen
@@ -21,6 +23,7 @@ object Screen {
     const val Pago = "pago"
     const val Comprobante = "comprobante"
     const val Historial = "historial"
+    const val DetalleCompromiso = "detalle_compromiso"
     const val ReportarProblema = "reportar_problema"
     const val ConfiguracionAvisos = "configuracion_avisos"
     const val RecomendarOrganizacion = "recomendar_organizacion"
@@ -31,6 +34,7 @@ object Screen {
 @Composable
 fun PagoFlexNavigation(repository: PagoFlexRepository) {
     val navController = rememberNavController()
+    val context = LocalContext.current
     val currentUser by UserSession.currentUser.collectAsState()
 
     NavHost(
@@ -79,12 +83,43 @@ fun PagoFlexNavigation(repository: PagoFlexRepository) {
                     onNavigateToRecomendar = {
                         navController.navigate(Screen.RecomendarOrganizacion)
                     },
+                    onVerComprobante = { idCompromiso ->
+                        navController.navigate("${Screen.Comprobante}/$idCompromiso")
+                    },
+                    onNavigateToMisReportes = {
+                        // "0" = sin compromiso: abre la lista de reportes sin crear uno nuevo
+                        navController.navigate("${Screen.ReportarProblema}/0")
+                    },
+                    onVerDetalle = { idCompromiso ->
+                        navController.navigate("${Screen.DetalleCompromiso}/$idCompromiso")
+                    },
                     onLogout = {
                         UserSession.clearSession()
+                        AvisosPrefs.guardarUsuario(context, null)
                         navController.navigate(Screen.RoleSelection) {
                             popUpTo(0) { inclusive = true }
                         }
                     }
+                )
+            }
+        }
+
+        // 2b. Detalle de un compromiso (RF-04)
+        composable(
+            route = "${Screen.DetalleCompromiso}/{idCompromiso}",
+            arguments = listOf(navArgument("idCompromiso") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val idCompromiso = backStackEntry.arguments?.getString("idCompromiso") ?: ""
+            val user = currentUser
+            if (user != null) {
+                DetalleCompromisoScreen(
+                    idCompromiso = idCompromiso,
+                    usuario = user,
+                    repository = repository,
+                    onPagar = { navController.navigate("${Screen.Pago}/$it") },
+                    onReportar = { navController.navigate("${Screen.ReportarProblema}/$it") },
+                    onVerComprobante = { navController.navigate("${Screen.Comprobante}/$it") },
+                    onBack = { navController.popBackStack() }
                 )
             }
         }
@@ -195,6 +230,7 @@ fun PagoFlexNavigation(repository: PagoFlexRepository) {
                     repository = repository,
                     onLogout = {
                         UserSession.clearSession()
+                        AvisosPrefs.guardarUsuario(context, null)
                         navController.navigate(Screen.RoleSelection) {
                             popUpTo(0) { inclusive = true }
                         }
@@ -212,6 +248,7 @@ fun PagoFlexNavigation(repository: PagoFlexRepository) {
                     repository = repository,
                     onLogout = {
                         UserSession.clearSession()
+                        AvisosPrefs.guardarUsuario(context, null)
                         navController.navigate(Screen.RoleSelection) {
                             popUpTo(0) { inclusive = true }
                         }

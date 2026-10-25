@@ -21,6 +21,11 @@ import cl.duocuc.pagoflex.data.local.entities.UsuarioEntity
 import cl.duocuc.pagoflex.repository.PagoFlexRepository
 import cl.duocuc.pagoflex.ui.utils.CurrencyFormatter
 import kotlinx.coroutines.launch
+import cl.duocuc.pagoflex.ui.theme.BotonTema
+import cl.duocuc.pagoflex.ui.theme.PF
+import cl.duocuc.pagoflex.util.Fechas
+import cl.duocuc.pagoflex.ui.common.MensajesEnSnackbar
+import cl.duocuc.pagoflex.ui.common.vm
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -31,22 +36,17 @@ fun PagoScreen(
     onPagoConfirmado: (String) -> Unit, // returns numeroComprobante
     onBack: () -> Unit
 ) {
-    val scope = rememberCoroutineScope()
-    var compromiso by remember { mutableStateOf<CompromisoEntity?>(null) }
-    var empresa by remember { mutableStateOf<EmpresaEntity?>(null) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
-    var isLoading by remember { mutableStateOf(false) }
+    // MVVM: el ViewModel carga el compromiso y ejecuta el pago
+    val viewModel = vm(key = "pago-$idCompromiso") { PagoViewModel(repository, usuario.idUsuario, idCompromiso) }
+    val ui by viewModel.estado.collectAsState()
+    val compromiso = ui.compromiso
+    val empresa = ui.empresa
+    val errorMessage = ui.error
+    val isLoading = ui.procesando
 
-    val mediosPago = listOf("Tarjeta de débito", "Tarjeta de crédito", "Transferencia bancaria")
+    // Aclaración 1: medio simulado (solo el nombre). Mismos nombres que el catálogo medio_pago.
+    val mediosPago = listOf("Tarjeta de débito", "Tarjeta de crédito", "Transferencia")
     var selectedMedioPago by remember { mutableStateOf(mediosPago[0]) }
-
-    LaunchedEffect(idCompromiso) {
-        val comp = repository.getCompromisoById(idCompromiso)
-        compromiso = comp
-        if (comp != null) {
-            empresa = repository.getEmpresaById(comp.idEmpresa)
-        }
-    }
 
     Scaffold(
         topBar = {
@@ -57,7 +57,7 @@ fun PagoScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                colors = PF.barra()
             )
         }
     ) { paddingValues ->
@@ -120,7 +120,7 @@ fun PagoScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Text("Recargo mora (${empresa?.nombreFantasia}):", color = MaterialTheme.colorScheme.error)
+                                    Text("Recargo por atraso:", color = MaterialTheme.colorScheme.error)
                                     Text(CurrencyFormatter.formatCLP(recargo), color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
                                 }
                             }
@@ -190,7 +190,7 @@ fun PagoScreen(
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = "Pago 100% simulado. No se cobran datos reales ni dinero.",
-                            fontSize = 11.sp,
+                            fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.outline
                         )
                     }
@@ -212,30 +212,14 @@ fun PagoScreen(
 
                 // Confirm Button
                 Button(
-                    onClick = {
-                        isLoading = true
-                        errorMessage = null
-                        scope.launch {
-                            val result = repository.realizarPagoSimulado(
-                                idUsuario = usuario.idUsuario,
-                                compromiso = currentCompromiso,
-                                medioPago = selectedMedioPago
-                            )
-                            isLoading = false
-                            result.onSuccess { pago ->
-                                onPagoConfirmado(pago.numeroComprobante)
-                            }.onFailure { err ->
-                                errorMessage = err.message ?: "Error al procesar el pago."
-                            }
-                        }
-                    },
+                    onClick = { viewModel.pagar(selectedMedioPago, onPagoConfirmado) },
                     enabled = !isLoading,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp)
                 ) {
                     if (isLoading) {
-                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                        CircularProgressIndicator(color = LocalContentColor.current, modifier = Modifier.size(24.dp))
                     } else {
                         Icon(Icons.Default.Payment, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))

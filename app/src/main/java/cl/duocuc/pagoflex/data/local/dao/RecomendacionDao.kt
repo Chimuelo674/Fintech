@@ -18,6 +18,15 @@ interface RecomendacionDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertRecomendacion(recomendacion: RecomendacionEntity)
 
+    @Query("SELECT MAX(idRecomendacion) FROM recomendacion WHERE idRecomendacion LIKE 'REC-%'")
+    suspend fun getMaxIdRecomendacion(): String?
+
+    @Query("SELECT * FROM recomendacion WHERE idRecomendacion = :id")
+    suspend fun getRecomendacionById(id: String): RecomendacionEntity?
+
+    @Query("SELECT * FROM recomendacion WHERE idUsuarioFinal = :idUsuario")
+    suspend fun getRecomendacionesByUsuarioOnce(idUsuario: String): List<RecomendacionEntity>
+
     @Update
     suspend fun updateRecomendacion(recomendacion: RecomendacionEntity)
 }

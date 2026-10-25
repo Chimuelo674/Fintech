@@ -1,26 +1,43 @@
 package cl.duocuc.pagoflex.ui.usuario
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Business
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cl.duocuc.pagoflex.data.local.entities.RecomendacionEntity
+import cl.duocuc.pagoflex.data.local.entities.ReconocimientoEntity
 import cl.duocuc.pagoflex.data.local.entities.UsuarioEntity
+import cl.duocuc.pagoflex.domain.ReglasRecomendacion
 import cl.duocuc.pagoflex.repository.PagoFlexRepository
+import cl.duocuc.pagoflex.ui.theme.PF
+import cl.duocuc.pagoflex.util.Fechas
+import cl.duocuc.pagoflex.util.Reloj
 import kotlinx.coroutines.launch
+import cl.duocuc.pagoflex.ui.common.MensajesEnSnackbar
+import cl.duocuc.pagoflex.ui.common.vm
 
+/**
+ * Recomendar una organización y seguir su estado (RF-12, HU-08, RN-12 a RN-14).
+ * La persona solo consulta el estado; lo cambia un agente comercial (RN-13).
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RecomendarOrganizacionScreen(
@@ -28,211 +45,269 @@ fun RecomendarOrganizacionScreen(
     repository: PagoFlexRepository,
     onBack: () -> Unit
 ) {
-    val scope = rememberCoroutineScope()
-    val recomendaciones by repository.getRecomendacionesByUsuario(usuario.idUsuario).collectAsState(initial = emptyList())
+    val snackbar = remember { SnackbarHostState() }
+    val c = PF.colors
 
-    var showDialog by remember { mutableStateOf(false) }
+    // MVVM
+    val viewModel = vm(key = "recomendar-${usuario.idUsuario}") { RecomendarViewModel(repository, usuario.idUsuario) }
+    MensajesEnSnackbar(viewModel, snackbar)
+    val ui by viewModel.estado.collectAsState()
+    val recomendaciones = ui.recomendaciones
+    val reconocimientos = ui.reconocimientos
+    var mostrarFormulario by remember { mutableStateOf(false) }
 
-    var nombreOrg by remember { mutableStateOf("") }
-    var rutOrg by remember { mutableStateOf("") }
-    var rubro by remember { mutableStateOf("") }
-    var comuna by remember { mutableStateOf("") }
-    var nombreContacto by remember { mutableStateOf("") }
-    var correoContacto by remember { mutableStateOf("") }
-    var telefonoContacto by remember { mutableStateOf("") }
-    var autorizaContacto by remember { mutableStateOf(false) }
+    val usadas = ReglasRecomendacion.usadasEnElMes(recomendaciones, Reloj.hoy().take(7))
+    val disponibles = (ReglasRecomendacion.MAXIMO_POR_MES - usadas).coerceAtLeast(0)
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             TopAppBar(
-                title = { Text("Recomendar Organización (RF-12)", fontWeight = FontWeight.Bold) },
+                title = { Text("Recomendar una organización", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
-                    }
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver") }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                colors = PF.barra()
             )
         },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = { showDialog = true },
-                icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                text = { Text("Recomendar") }
-            )
+            if (disponibles > 0) {
+                ExtendedFloatingActionButton(
+                    onClick = { mostrarFormulario = true },
+                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                    text = { Text("Recomendar") }
+                )
+            }
         }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(16.dp)
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp),
+            contentPadding = PaddingValues(top = 12.dp, bottom = 96.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Card(
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "Programa de Referidos de Organizaciones",
-                        fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "¿Tienes otros compromisos de pago (gastos comunes, jardín infantil, club, etc.) que aún no pagan por PagoFlex? Recomiéndanos y nuestro equipo comercial los contactará.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
+            item {
+                Card(colors = CardDefaults.cardColors(containerColor = c.chip), modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("¿Le pagas a alguien que todavía no usa PagoFlex?", fontWeight = FontWeight.Bold, color = c.onChip)
+                        Text(
+                            "Tu jardín infantil, tu club o la administración de tu edificio. Recomiéndalos y nuestro equipo " +
+                                "comercial los contactará. Si se unen, recibirás el reconocimiento Embajador PagoFlex.",
+                            fontSize = 13.sp, color = c.onChip
+                        )
+                        Text(
+                            if (disponibles > 0) "Este mes puedes hacer $disponibles ${if (disponibles == 1) "recomendación más" else "recomendaciones más"}."
+                            else "Ya hiciste las ${ReglasRecomendacion.MAXIMO_POR_MES} recomendaciones de este mes.",
+                            fontSize = 12.sp, color = c.onChip.copy(alpha = 0.8f)
+                        )
+                    }
                 }
             }
-
-            Spacer(modifier = Modifier.height(16.dp))
 
             if (recomendaciones.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Aún no has recomendado organizaciones.")
-                }
+                item { Text("Aún no has recomendado organizaciones.", color = c.textMuted, modifier = Modifier.padding(24.dp)) }
             } else {
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(recomendaciones) { rec ->
-                        RecomendacionCardItem(recomendacion = rec)
+                item { Text("Tus recomendaciones", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = c.textStrong) }
+            }
+
+            items(recomendaciones, key = { it.idRecomendacion }) { rec ->
+                RecomendacionCardItem(
+                    recomendacion = rec,
+                    reconocimiento = reconocimientos.firstOrNull { it.motivo.startsWith(rec.idRecomendacion) }
+                )
+            }
+        }
+    }
+
+    if (mostrarFormulario) {
+        FormularioRecomendacion(
+            onEnviar = { datos, alTerminar ->
+                viewModel.recomendar(datos, onExito = { mostrarFormulario = false }, onError = alTerminar)
+            },
+            onDismiss = { mostrarFormulario = false }
+        )
+    }
+}
+
+/** Formulario con las reglas de RN-12. [onEnviar] recibe los datos y una función para mostrar errores. */
+@Composable
+private fun FormularioRecomendacion(
+    onEnviar: (ReglasRecomendacion.Datos, (String) -> Unit) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val c = PF.colors
+    var nombre by remember { mutableStateOf("") }
+    var rubro by remember { mutableStateOf("") }
+    var comuna by remember { mutableStateOf("") }
+    var rut by remember { mutableStateOf("") }
+    var nombreContacto by remember { mutableStateOf("") }
+    var correo by remember { mutableStateOf("") }
+    var telefono by remember { mutableStateOf("") }
+    var autoriza by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var enviando by remember { mutableStateOf(false) }
+
+    val datos = ReglasRecomendacion.Datos(nombre, rubro, comuna, rut, nombreContacto, correo, telefono, autoriza)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Recomendar organización", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(nombre, { nombre = it; error = null }, label = { Text("Nombre de la organización *") },
+                    singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(rubro, { rubro = it; error = null }, label = { Text("Rubro *") },
+                    placeholder = { Text("Jardín infantil, club, condominio…") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(comuna, { comuna = it; error = null }, label = { Text("Comuna *") },
+                    singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(rut, { rut = it; error = null }, label = { Text("RUT de la organización (opcional)") },
+                    singleLine = true, modifier = Modifier.fillMaxWidth())
+
+                HorizontalDivider(color = c.divider, modifier = Modifier.padding(vertical = 4.dp))
+                Text("Persona de contacto (opcional)", fontWeight = FontWeight.SemiBold, color = c.textStrong)
+                Text(
+                    "Solo agrega estos datos si esa persona te autorizó a compartirlos con PagoFlex.",
+                    fontSize = 12.sp, color = c.textMuted
+                )
+                OutlinedTextField(nombreContacto, { nombreContacto = it; error = null }, label = { Text("Nombre") },
+                    singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(correo, { correo = it; error = null }, label = { Text("Correo") }, singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email), modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(telefono, { telefono = it; error = null }, label = { Text("Teléfono") }, singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), modifier = Modifier.fillMaxWidth())
+                if (datos.tieneDatosDeContacto) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth().clickable { autoriza = !autoriza; error = null }
+                    ) {
+                        Checkbox(checked = autoriza, onCheckedChange = { autoriza = it; error = null })
+                        Text("Esta persona autorizó que PagoFlex la contacte", fontSize = 13.sp, color = c.textStrong)
+                    }
+                }
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 13.sp) }
+            }
+        },
+        confirmButton = {
+            Button(
+                enabled = !enviando,
+                onClick = {
+                    val problema = ReglasRecomendacion.validar(datos)
+                    if (problema != null) {
+                        error = problema
+                    } else {
+                        enviando = true
+                        onEnviar(datos) { mensaje -> error = mensaje; enviando = false }
+                    }
+                }
+            ) { Text("Enviar") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
+    )
+}
+
+@Composable
+fun RecomendacionCardItem(recomendacion: RecomendacionEntity, reconocimiento: ReconocimientoEntity? = null) {
+    val c = PF.colors
+    val (statusBg, statusFg) = PF.estado(recomendacion.estado)
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = c.card),
+        elevation = CardDefaults.cardElevation(2.dp),
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    recomendacion.nombreOrganizacion,
+                    fontWeight = FontWeight.Bold, fontSize = 16.sp, color = c.textStrong, modifier = Modifier.weight(1f)
+                )
+                Spacer(Modifier.width(8.dp))
+                Surface(shape = RoundedCornerShape(20.dp), color = statusBg) {
+                    Text(recomendacion.estado, color = statusFg, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                        maxLines = 1, softWrap = false, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
+                }
+            }
+            Text(
+                "${recomendacion.rubro ?: "Sin rubro"} · ${recomendacion.comuna ?: "Sin comuna"} · enviada el ${Fechas.mostrar(recomendacion.fecha)}",
+                fontSize = 12.sp, color = c.textMuted
+            )
+
+            // Avance por etapas (RN-13)
+            if (recomendacion.estado != "Descartada") {
+                Spacer(Modifier.height(6.dp))
+                Etapas(actual = recomendacion.estado)
+            } else if (!recomendacion.motivoDescarte.isNullOrBlank()) {
+                Text("No siguió adelante: ${recomendacion.motivoDescarte}", fontSize = 12.sp, color = c.textMuted)
+            }
+
+            recomendacion.fechaUltimoCambio?.let {
+                Text("Último cambio: ${Fechas.mostrar(it)}", fontSize = 12.sp, color = c.textMuted)
+            }
+
+            // HU-08 CA-4: el reconocimiento asociado
+            reconocimiento?.let { r ->
+                Spacer(Modifier.height(4.dp))
+                Surface(shape = RoundedCornerShape(12.dp), color = c.chip) {
+                    Row(Modifier.fillMaxWidth().padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.EmojiEvents, contentDescription = null, tint = c.onChip)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Obtuviste el reconocimiento ${r.nombreReconocimiento} (${Fechas.mostrar(r.fechaObtencion)})",
+                            fontSize = 12.sp, color = c.onChip)
                     }
                 }
             }
-        }
-
-        // Dialog Formulario
-        if (showDialog) {
-            AlertDialog(
-                onDismissRequest = { showDialog = false },
-                title = { Text("Recomendar Organización", fontWeight = FontWeight.Bold) },
-                text = {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = nombreOrg,
-                            onValueChange = { nombreOrg = it },
-                            label = { Text("Nombre de la organización *") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        OutlinedTextField(
-                            value = rubro,
-                            onValueChange = { rubro = it },
-                            label = { Text("Rubro (ej. Jardín infantil, Condominio)") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        OutlinedTextField(
-                            value = comuna,
-                            onValueChange = { comuna = it },
-                            label = { Text("Comuna") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        OutlinedTextField(
-                            value = nombreContacto,
-                            onValueChange = { nombreContacto = it },
-                            label = { Text("Nombre de contacto (Opcional)") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        OutlinedTextField(
-                            value = correoContacto,
-                            onValueChange = { correoContacto = it },
-                            label = { Text("Correo o Teléfono de contacto") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(
-                                checked = autorizaContacto,
-                                onCheckedChange = { autorizaContacto = it }
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Autorizo contacto mencionando mi nombre (RN-12)", fontSize = 12.sp)
-                        }
-                    }
-                },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            if (nombreOrg.isNotBlank()) {
-                                scope.launch {
-                                    repository.crearRecomendacion(
-                                        idUsuario = usuario.idUsuario,
-                                        nombreOrg = nombreOrg,
-                                        rutOrg = rutOrg.ifBlank { null },
-                                        rubro = rubro.ifBlank { null },
-                                        comuna = comuna.ifBlank { null },
-                                        nombreContacto = nombreContacto.ifBlank { null },
-                                        correoContacto = correoContacto.ifBlank { null },
-                                        telefonoContacto = telefonoContacto.ifBlank { null },
-                                        autorizaContacto = autorizaContacto
-                                    )
-                                    showDialog = false
-                                    nombreOrg = ""
-                                    rubro = ""
-                                    comuna = ""
-                                    nombreContacto = ""
-                                    correoContacto = ""
-                                }
-                            }
-                        }
-                    ) {
-                        Text("Enviar Recomendación")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showDialog = false }) { Text("Cancelar") }
-                }
-            )
         }
     }
 }
 
+/**
+ * Línea de etapas: Recibida → Contactada → En evaluación → Se unió.
+ * Dos filas con los mismos pesos (puntos arriba, nombres abajo) para que los nombres largos
+ * puedan usar dos líneas sin descuadrar los puntos.
+ */
 @Composable
-fun RecomendacionCardItem(recomendacion: RecomendacionEntity) {
-    val (statusBg, statusFg) = when (recomendacion.estado) {
-        "Recibida" -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
-        "En evaluación" -> Color(0xFFFFF3E0) to Color(0xFFE65100)
-        "Contactada" -> Color(0xFFE3F2FD) to Color(0xFF1565C0)
-        "Se unió" -> Color(0xFFE8F5E9) to Color(0xFF2E7D32)
-        else -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
-    }
+private fun Etapas(actual: String) {
+    val c = PF.colors
+    val etapas = ReglasRecomendacion.ETAPAS
+    val idx = etapas.indexOf(actual)
+    val pesoEtapa = 1f
+    val pesoConector = 0.2f
 
-    Card(
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        shape = RoundedCornerShape(12.dp),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(recomendacion.nombreOrganizacion, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                Surface(shape = RoundedCornerShape(6.dp), color = statusBg) {
-                    Text(
-                        text = recomendacion.estado,
-                        color = statusFg,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+    Column(Modifier.fillMaxWidth()) {
+        // Fila 1: puntos y conectores
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            etapas.forEachIndexed { i, _ ->
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.weight(pesoEtapa)) {
+                    Surface(
+                        shape = CircleShape,
+                        color = if (i <= idx) c.accent else c.divider,
+                        modifier = Modifier.size(12.dp)
+                    ) {}
+                }
+                if (i < etapas.lastIndex) {
+                    HorizontalDivider(
+                        color = if (i < idx) c.accent else c.divider,
+                        thickness = 2.dp,
+                        modifier = Modifier.weight(pesoConector)
                     )
                 }
             }
-
-            Spacer(modifier = Modifier.height(4.dp))
-            Text("Rubro: ${recomendacion.rubro ?: "No especificado"} • Comuna: ${recomendacion.comuna ?: "N/A"}", style = MaterialTheme.typography.bodySmall)
-            Text("Fecha enviada: ${recomendacion.fecha}", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
-
-            if (!recomendacion.motivoDescarte.isNullOrBlank()) {
-                Spacer(modifier = Modifier.height(6.dp))
-                Text("Motivo: ${recomendacion.motivoDescarte}", fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
+        }
+        Spacer(Modifier.height(4.dp))
+        // Fila 2: nombres (hasta dos líneas, centrados)
+        Row(verticalAlignment = Alignment.Top, modifier = Modifier.fillMaxWidth()) {
+            etapas.forEachIndexed { i, etapa ->
+                Text(
+                    etapa,
+                    fontSize = 11.sp,
+                    lineHeight = 14.sp,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    color = if (i <= idx) c.textStrong else c.textMuted,
+                    fontWeight = if (i == idx) FontWeight.Bold else FontWeight.Normal,
+                    modifier = Modifier.weight(pesoEtapa)
+                )
+                if (i < etapas.lastIndex) Spacer(Modifier.weight(pesoConector))
             }
         }
     }
