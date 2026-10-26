@@ -6,7 +6,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 object UserSession {
-
     private val _currentUser = MutableStateFlow<UsuarioEntity?>(null)
     val currentUser: StateFlow<UsuarioEntity?> = _currentUser.asStateFlow()
 

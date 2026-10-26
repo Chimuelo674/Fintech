@@ -8,9 +8,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Test
 
-/** RF-12 / RN-12 / HU-08: recomendar una organización. */
 class RecomendacionTest {
-
     private val base = Datos(nombreOrganizacion = "Jardín Infantil Los Peques", rubro = "Educación parvularia", comuna = "Maipú")
 
     @Test

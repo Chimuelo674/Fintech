@@ -5,7 +5,6 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
-// MER: rut y correo únicos (RN-18)
 @Entity(
     tableName = "usuario",
     indices = [
@@ -16,13 +15,12 @@ import androidx.room.PrimaryKey
         ForeignKey(entity = RolEntity::class, parentColumns = ["codigo"], childColumns = ["idRol"]),
         ForeignKey(entity = ComunaEntity::class, parentColumns = ["nombre"], childColumns = ["comuna"]),
         ForeignKey(entity = AreaEntity::class, parentColumns = ["nombre"], childColumns = ["area"]),
-        // S-10: un ejecutivo pertenece a una sola empresa cliente
         ForeignKey(entity = EmpresaEntity::class, parentColumns = ["idEmpresa"], childColumns = ["idEmpresa"])
     ]
 )
 data class UsuarioEntity(
-    @PrimaryKey val idUsuario: String, // e.g. "UF-01", "AG-01", "EJ-01"
-    val idRol: String,                 // "USUARIO_FINAL", "AGENTE", "EJECUTIVO"
+    @PrimaryKey val idUsuario: String,
+    val idRol: String,
     val rut: String,
     val nombres: String,
     val apellidos: String,
@@ -32,9 +30,9 @@ data class UsuarioEntity(
     val fechaIncorporacion: String? = null,
     val avisosActivos: Boolean = true,
     val diasAnticipacion: Int = 3,
-    val area: String? = null,           // "Soporte", "Comercial" (Agente)
-    val idEmpresa: String? = null,      // "EC-01", etc. (Ejecutivo)
-    val cargo: String? = null,          // (Ejecutivo)
+    val area: String? = null,
+    val idEmpresa: String? = null,
+    val cargo: String? = null,
     val activo: Boolean = true
 ) {
     val nombreCompleto: String

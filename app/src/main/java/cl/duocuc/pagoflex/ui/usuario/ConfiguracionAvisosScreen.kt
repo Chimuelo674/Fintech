@@ -36,11 +36,6 @@ import java.util.Calendar
 import cl.duocuc.pagoflex.ui.common.MensajesEnSnackbar
 import cl.duocuc.pagoflex.ui.common.vm
 
-/**
- * Ajustes: avisos de vencimiento personalizados (RF-11, HU-07, RN-15) y tema.
- * La persona elige 1, 3 o 5 días de anticipación o desactiva los avisos, y ve de inmediato
- * qué avisos recibiría hoy y cuándo le avisaremos de cada compromiso.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConfiguracionAvisosScreen(
@@ -57,7 +52,6 @@ fun ConfiguracionAvisosScreen(
     var diasAnticipacion by remember { mutableIntStateOf(usuario.diasAnticipacion) }
     val hayCambios = avisosActivos != usuario.avisosActivos || diasAnticipacion != usuario.diasAnticipacion
 
-    // MVVM (el contexto de la aplicación se usa para enviar notificaciones)
     val viewModel = vm(key = "avisos-${usuario.idUsuario}") {
         AvisosViewModel(repository, context.applicationContext, usuario.idUsuario)
     }
@@ -67,7 +61,6 @@ fun ConfiguracionAvisosScreen(
     val nombreEmpresa = ui.nombreEmpresa
 
     val hoy = Reloj.hoy()
-    // Vista previa con la configuración que la persona está eligiendo (aunque no la haya guardado)
     val avisosDeHoy = ReglasAvisos.avisosDelDia(avisosActivos, diasAnticipacion, compromisos, { nombreEmpresa[it] ?: it }, hoy) +
         ReglasAvisos.avisosDeNovedades(
             avisosActivos, ui.pagos, compromisos.associateBy { it.idCompromiso }, ui.reportes, { nombreEmpresa[it] ?: it }, hoy
@@ -77,7 +70,6 @@ fun ConfiguracionAvisosScreen(
         .filter { it.second > hoy }
         .sortedBy { it.second }
 
-    // La sesión guarda una copia del usuario: se actualiza para ver los valores nuevos al volver
     val alGuardar: (UsuarioEntity) -> Unit = { UserSession.setSession(it) }
 
     fun explicar(r: ResultadoAvisos): String = when {
@@ -95,7 +87,6 @@ fun ConfiguracionAvisosScreen(
 
     fun enviarAhora() = viewModel.enviarAhora(usuario, avisosActivos, diasAnticipacion, alGuardar, ::explicar)
 
-    // Android 13+: hay que pedir permiso para mostrar notificaciones
     val pedirPermiso = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { concedido ->
         if (concedido) enviarAhora()
         else scope.launch { snackbar.showSnackbar("Sin permiso no podemos mostrarte los avisos. Puedes activarlo en los ajustes del teléfono.") }
@@ -117,7 +108,6 @@ fun ConfiguracionAvisosScreen(
             modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // ---------------------------------------------------------------- Avisos
             Text("Avisos de vencimiento", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = c.textStrong)
             Card(colors = CardDefaults.cardColors(containerColor = c.card), modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -158,7 +148,6 @@ fun ConfiguracionAvisosScreen(
                 }
             }
 
-            // ------------------------------------------------- Vista previa (hábito: disparador)
             if (avisosActivos) {
                 Card(colors = CardDefaults.cardColors(containerColor = c.chip), modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -211,7 +200,6 @@ fun ConfiguracionAvisosScreen(
                 }
             }
 
-            // ----------------------------------------------------------------- Apariencia
             Text("Apariencia", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = c.textStrong)
             Card(colors = CardDefaults.cardColors(containerColor = c.card), modifier = Modifier.fillMaxWidth()) {
                 Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -232,7 +220,6 @@ fun ConfiguracionAvisosScreen(
 
 private val MESES_CORTOS = listOf("ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC")
 
-/** Un próximo aviso: recuadro con la fecha, empresa, concepto, tipo de aviso y monto. */
 @Composable
 private fun ProximoAvisoItem(
     fecha: String,
@@ -247,7 +234,6 @@ private fun ProximoAvisoItem(
     val mes = fecha.drop(5).take(2).toIntOrNull()?.let { MESES_CORTOS[it - 1] } ?: ""
 
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-        // Recuadro de fecha
         Surface(shape = RoundedCornerShape(12.dp), color = c.chip, modifier = Modifier.size(width = 52.dp, height = 56.dp)) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -263,7 +249,6 @@ private fun ProximoAvisoItem(
             Text(empresa, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = c.textStrong)
             Text(concepto, fontSize = 13.sp, color = c.textMuted)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // Tipo de aviso: con anticipación (verde) o el mismo día del vencimiento (naranja)
                 val (bg, fg) = if (elDiaQueVence) c.revisionBg to c.revisionFg else c.pendienteBg to c.pendienteFg
                 Surface(shape = RoundedCornerShape(20.dp), color = bg) {
                     Text(

@@ -6,9 +6,7 @@ import cl.duocuc.pagoflex.ui.common.BaseViewModel
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 
-/** ViewModel del panel del agente PagoFlex (RF-14 a RF-16). */
 class AgenteViewModel(private val repo: PagoFlexRepository, private val idAgente: String) : BaseViewModel() {
-
     data class Estado(
         val reportes: List<ReporteEntity> = emptyList(),
         val recomendaciones: List<RecomendacionEntity> = emptyList(),

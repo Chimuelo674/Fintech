@@ -39,10 +39,6 @@ import cl.duocuc.pagoflex.ui.common.vm
 
 private val FILTROS_ESTADO = listOf("Todos", "Pendiente", "Vencido", "En revisión", "Pagado", "Anulado")
 
-/**
- * Panel del ejecutivo de empresa cliente (R-03): compromisos de SU empresa (RF-17, RN-22),
- * registrar (RF-18, RN-20), anular (RF-19, RN-21) y resumen de cobranza del mes (RF-20, RN-24).
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EjecutivoDashboardScreen(
@@ -50,12 +46,10 @@ fun EjecutivoDashboardScreen(
     repository: PagoFlexRepository,
     onLogout: () -> Unit
 ) {
-    val idEmpresa = ejecutivo.idEmpresa ?: return // un ejecutivo siempre tiene empresa (S-10)
+    val idEmpresa = ejecutivo.idEmpresa ?: return
     val snackbar = remember { SnackbarHostState() }
     val c = PF.colors
 
-    // MVVM: el ViewModel entrega solo los datos de SU empresa (RN-22); mes, filtro y diálogos
-    // son estado de la pantalla
     val viewModel = vm(key = "ejecutivo-${ejecutivo.idUsuario}") {
         EjecutivoViewModel(repository, ejecutivo.idUsuario, idEmpresa)
     }
@@ -80,7 +74,6 @@ fun EjecutivoDashboardScreen(
     val listaMes = compromisos
         .filter { it.fechaVencimiento.take(7) == mes && (filtro == "Todos" || it.estado == filtro) }
         .let { lista ->
-            // RF-27 (deseable): los vencidos, de más a menos días de atraso
             if (filtro == "Vencido") lista.sortedByDescending { Fechas.diasAtraso(it.fechaVencimiento, hoy) }
             else lista.sortedBy { it.fechaVencimiento }
         }
@@ -117,7 +110,6 @@ fun EjecutivoDashboardScreen(
             contentPadding = PaddingValues(top = 12.dp, bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Selector de mes (RF-17 filtro por mes; RF-20 resumen del mes)
             item {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     IconButton(onClick = { mes = Fechas.sumarMesesAMes(mes, -1) }) {
@@ -136,7 +128,6 @@ fun EjecutivoDashboardScreen(
 
             item { ResumenCobranzaCard(resumen) }
 
-            // Aclaración 3: al ejecutivo le importa saber qué compromisos de su empresa están En revisión
             if (enRevisionTotal > 0) {
                 item {
                     Card(
@@ -182,7 +173,6 @@ fun EjecutivoDashboardScreen(
         }
     }
 
-    // ---- Detalle (RF-17), con el reporte si está En revisión
     detalle?.let { d ->
         val actual = compromisos.firstOrNull { it.idCompromiso == d.idCompromiso } ?: d
         DetalleCompromisoDialog(
@@ -196,7 +186,6 @@ fun EjecutivoDashboardScreen(
         )
     }
 
-    // ---- Anular (RF-19, RN-21)
     aAnular?.let { comp ->
         AnularDialog(
             comp = comp,
@@ -205,7 +194,6 @@ fun EjecutivoDashboardScreen(
         )
     }
 
-    // ---- Registrar (RF-18, RN-20)
     if (registrando) {
         RegistrarCompromisoDialog(
             viewModel = viewModel,
@@ -218,8 +206,6 @@ fun EjecutivoDashboardScreen(
         )
     }
 }
-
-// ============================================================================ Resumen
 
 @Composable
 private fun ResumenCobranzaCard(r: ReglasRolesInternos.ResumenCobranza) {
@@ -256,8 +242,6 @@ private fun Dato(etiqueta: String, valor: String, modifier: Modifier, alerta: Bo
         Text(valor, color = if (alerta) c.headerAlert else c.onHeader, fontWeight = FontWeight.Bold, fontSize = 14.sp)
     }
 }
-
-// ============================================================================= Lista
 
 @Composable
 private fun CompromisoEjecutivoCard(comp: CompromisoEntity, persona: UsuarioEntity?, onClick: () -> Unit) {
@@ -299,8 +283,6 @@ private fun CompromisoEjecutivoCard(comp: CompromisoEntity, persona: UsuarioEnti
     }
 }
 
-// ============================================================================ Detalle
-
 @Composable
 private fun DetalleCompromisoDialog(
     comp: CompromisoEntity,
@@ -317,7 +299,6 @@ private fun DetalleCompromisoDialog(
         title = { Text("Compromiso ${comp.folio}", fontWeight = FontWeight.Bold) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                // RN-22: de la persona, solo nombre, RUT y datos de contacto
                 Fila("Persona", persona?.nombreCompleto ?: comp.idUsuarioFinal)
                 Fila("RUT", persona?.rut ?: "—")
                 Fila("Contacto", listOfNotNull(persona?.correo, persona?.telefono).joinToString(" · ").ifBlank { "—" })
@@ -340,7 +321,6 @@ private fun DetalleCompromisoDialog(
                     Fila("Anulado por", comp.ejecutivoAnulacion?.let(nombreDe) ?: "—")
                     Fila("Fecha anulación", Fechas.mostrar(comp.fechaAnulacion))
                 }
-                // RF-17: el reporte, en solo lectura
                 reportes.forEach { r ->
                     HorizontalDivider(color = c.divider, modifier = Modifier.padding(vertical = 6.dp))
                     Text("Reporte ${r.idReporte} · ${r.estado}", fontWeight = FontWeight.Bold, color = c.textStrong)
@@ -367,8 +347,6 @@ private fun Fila(etiqueta: String, valor: String) {
         Text(valor, fontSize = 13.sp, color = c.textStrong, fontWeight = FontWeight.Medium, modifier = Modifier.weight(0.55f))
     }
 }
-
-// ============================================================================ Anular
 
 @Composable
 private fun AnularDialog(comp: CompromisoEntity, onConfirm: (String, String) -> Unit, onDismiss: () -> Unit) {
@@ -410,8 +388,6 @@ private fun AnularDialog(comp: CompromisoEntity, onConfirm: (String, String) -> 
     )
 }
 
-// ========================================================================= Registrar
-
 @Composable
 private fun RegistrarCompromisoDialog(
     viewModel: EjecutivoViewModel,
@@ -431,7 +407,6 @@ private fun RegistrarCompromisoDialog(
     var error by remember { mutableStateOf<String?>(null) }
     var guardando by remember { mutableStateOf(false) }
 
-    // Busca a la persona cuando el RUT es válido
     val rutValido = Rut.esValido(rut)
     val persona by produceState<UsuarioEntity?>(initialValue = null, rut) {
         value = if (Rut.esValido(rut)) viewModel.buscarPersona(rut) else null
@@ -458,7 +433,6 @@ private fun RegistrarCompromisoDialog(
                     singleLine = true, modifier = Modifier.fillMaxWidth()
                 )
                 if (esNueva) {
-                    // RN-20: si la persona no existe, el ejecutivo registra sus datos básicos
                     OutlinedTextField(nombres, { nombres = it }, label = { Text("Nombres *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(apellidos, { apellidos = it }, label = { Text("Apellidos *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(

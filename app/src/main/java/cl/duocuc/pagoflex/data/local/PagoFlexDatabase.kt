@@ -23,7 +23,6 @@ import kotlinx.coroutines.launch
         RecomendacionEntity::class,
         ReconocimientoEntity::class,
         HistorialRecomendacionEntity::class,
-        // Catálogos (MER 2.2)
         RolEntity::class,
         EstadoCompromisoEntity::class,
         EstadoReporteEntity::class,
@@ -37,15 +36,10 @@ import kotlinx.coroutines.launch
         AreaEntity::class,
         ReconocimientoCatalogoEntity::class
     ],
-    // v2: historial de 12 meses. v3: historial de recomendaciones. v4: índices, UNIQUE y FK del MER.
-    // v6: catálogos con claves foráneas.
-    // v5: pago y reporte sin columnas redundantes (persona/empresa vía compromiso; "a tiempo" y recargo se calculan).
-    // Al subir la versión, la base anterior se borra y se vuelve a cargar (no hay datos reales que conservar).
     version = 6,
     exportSchema = false
 )
 abstract class PagoFlexDatabase : RoomDatabase() {
-
     abstract fun usuarioDao(): UsuarioDao
     abstract fun empresaDao(): EmpresaDao
     abstract fun compromisoDao(): CompromisoDao
@@ -71,7 +65,6 @@ abstract class PagoFlexDatabase : RoomDatabase() {
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         super.onCreate(db)
-                        // Seed database asynchronously on creation
                         INSTANCE?.let { database ->
                             CoroutineScope(Dispatchers.IO).launch {
                                 InitialDataSeeder.seedDatabase(database)
@@ -84,8 +77,6 @@ abstract class PagoFlexDatabase : RoomDatabase() {
                         super.onOpen(db)
                         INSTANCE?.let { database ->
                             CoroutineScope(Dispatchers.IO).launch {
-                                // También cubre la recarga tras una migración destructiva,
-                                // donde Room llama a onOpen pero no a onCreate.
                                 InitialDataSeeder.seedDatabase(database)
                                 PagoFlexRepository(database).sincronizarEstados()
                             }

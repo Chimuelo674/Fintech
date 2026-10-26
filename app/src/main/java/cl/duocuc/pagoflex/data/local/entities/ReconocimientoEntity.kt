@@ -10,14 +10,13 @@ import androidx.room.PrimaryKey
     indices = [Index("idUsuarioFinal"), Index("nombreReconocimiento")],
     foreignKeys = [
         ForeignKey(entity = UsuarioEntity::class, parentColumns = ["idUsuario"], childColumns = ["idUsuarioFinal"]),
-        // La descripción vive en el catálogo "reconocimiento" (no se repite por usuario, 3FN)
         ForeignKey(entity = ReconocimientoCatalogoEntity::class, parentColumns = ["nombre"], childColumns = ["nombreReconocimiento"])
     ]
 )
 data class ReconocimientoEntity(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val idUsuarioFinal: String,
-    val nombreReconocimiento: String, // "Pago Puntual", "Racha de 3 Meses", "Embajador PagoFlex"
-    val fechaObtencion: String,       // "YYYY-MM-DD"
+    val nombreReconocimiento: String,
+    val fechaObtencion: String,
     val motivo: String
 )

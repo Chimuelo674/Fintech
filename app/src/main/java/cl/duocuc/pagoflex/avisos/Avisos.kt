@@ -26,11 +26,6 @@ import cl.duocuc.pagoflex.util.Reloj
 import java.util.Calendar
 import java.util.concurrent.TimeUnit
 
-/**
- * Datos del dispositivo para los avisos (no son datos del negocio, por eso no van en Room):
- * - qué usuario final tiene la sesión abierta en este teléfono;
- * - qué avisos ya se enviaron hoy (RN-15: máximo uno por compromiso al día).
- */
 object AvisosPrefs {
     private const val PREFS = "pagoflex_avisos"
     private const val KEY_USUARIO = "usuario_sesion"
@@ -52,7 +47,6 @@ object AvisosPrefs {
     }
 }
 
-/** Canal y publicación de notificaciones. */
 object Notificador {
     const val CANAL = "vencimientos"
 
@@ -70,7 +64,7 @@ object Notificador {
             ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) &&
             NotificationManagerCompat.from(ctx).areNotificationsEnabled()
 
-    @SuppressLint("MissingPermission") // se verifica con tienePermiso() antes de llamar
+    @SuppressLint("MissingPermission")
     fun mostrar(ctx: Context, aviso: ReglasAvisos.Aviso) {
         if (!tienePermiso(ctx)) return
         crearCanal(ctx)
@@ -91,7 +85,6 @@ object Notificador {
     }
 }
 
-/** Resultado de un intento de envío (para explicarle a la persona qué pasó). */
 data class ResultadoAvisos(
     val enviados: List<ReglasAvisos.Aviso> = emptyList(),
     val yaEnviadosHoy: Int = 0,
@@ -100,12 +93,9 @@ data class ResultadoAvisos(
     val sinSesion: Boolean = false
 )
 
-/** Calcula los avisos de hoy del usuario con sesión y envía los que corresponden según RN-15. */
 object ServicioAvisos {
-
     suspend fun enviarPendientes(ctx: Context): ResultadoAvisos {
         val idUsuario = AvisosPrefs.usuarioActual(ctx) ?: return ResultadoAvisos(sinSesion = true)
-        // RN-15: nunca entre las 22:00 y las 08:00 (hora real del teléfono)
         if (!ReglasAvisos.horarioPermitido(Calendar.getInstance().get(Calendar.HOUR_OF_DAY))) {
             return ResultadoAvisos(fueraDeHorario = true)
         }
@@ -120,7 +110,6 @@ object ServicioAvisos {
         val hoy = Reloj.hoy()
         val nombre: (String) -> String = { empresas[it] ?: it }
         val avisos = ReglasAvisos.avisosDelDia(usuario.avisosActivos, usuario.diasAnticipacion, compromisos, nombre, hoy) +
-            // Aclaración 3 (media): pago registrado (cualquier canal) y reporte resuelto
             ReglasAvisos.avisosDeNovedades(
                 usuario.avisosActivos,
                 db.pagoDao().getPagosByUsuarioOnce(idUsuario),
@@ -137,10 +126,6 @@ object ServicioAvisos {
         return ResultadoAvisos(enviados = nuevos, yaEnviadosHoy = repetidos.size)
     }
 
-    /**
-     * Revisa cada hora (lo mínimo razonable para cumplir "nunca de noche" y "una vez al día"):
-     * si es de noche no hace nada, y en la primera revisión después de las 08:00 envía lo pendiente.
-     */
     fun programar(ctx: Context) {
         Notificador.crearCanal(ctx)
         val tarea = PeriodicWorkRequestBuilder<AvisosWorker>(1, TimeUnit.HOURS).build()

@@ -14,12 +14,8 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Reglas del agente PagoFlex y del ejecutivo de empresa cliente (RN-13, RN-18, RN-20, RN-21, RN-23, RN-24). */
 class RolesInternosTest {
-
     private val hoy = "2026-10-06"
-
-    // ---------------- RN-18: RUT
 
     @Test
     fun rutsDelAnexo9SonValidos() {
@@ -35,16 +31,12 @@ class RolesInternosTest {
         assertTrue(Rut.mismoRut("12476318-5", "12.476.318-5"))
     }
 
-    // ---------------- RN-23: reporte atrasado
-
     private fun reporte(id: String, fecha: String, estado: String) =
         ReporteEntity(id, "CP", "Otro", null, fecha, estado)
 
     @Test
     fun diasHabiles() {
-        // 30-09-2026 (miércoles) -> 06-10-2026 (martes): jue, vie, lun, mar = 4
         assertEquals(4, Fechas.diasHabilesEntre("2026-09-30", hoy))
-        // viernes -> lunes = 1 día hábil
         assertEquals(1, Fechas.diasHabilesEntre("2026-10-02", "2026-10-05"))
     }
 
@@ -52,11 +44,8 @@ class RolesInternosTest {
     fun rep0010EstaAtrasadoYRep0011No() {
         assertTrue(R.reporteAtrasado(reporte("REP-0010", "2026-09-30", "Abierto"), hoy))
         assertFalse("en gestión no cuenta como atrasado", R.reporteAtrasado(reporte("REP-0011", "2026-10-03", "En gestión"), hoy))
-        // Abierto hace solo 2 días hábiles (vie 02-10 -> mar 06-10 = lun, mar) -> aún no
         assertFalse(R.reporteAtrasado(reporte("X", "2026-10-02", "Abierto"), hoy))
     }
-
-    // ---------------- RN-13: no saltarse etapas (HU-10 CA-4)
 
     @Test
     fun recomendacionNoSeSaltaEtapas() {
@@ -68,11 +57,8 @@ class RolesInternosTest {
         assertTrue(R.siguientesEstados("Descartada").isEmpty())
     }
 
-    // ---------------- RN-20: registro (HU-11)
-
     @Test
     fun registroValidoHU11CA1() {
-        // Paula registra la cuota 16/36 de Luis por $310.000 con vencimiento 30-11-2026
         assertNull(R.validarDatosCompromiso("12.476.318-5", "Cuota pie departamento", 16, 36, 310000, "2026-11-30", hoy))
     }
 
@@ -95,11 +81,8 @@ class RolesInternosTest {
         val existentes = listOf(comp("A", "Pendiente"))
         assertTrue(R.esDuplicado(existentes, "UF-02", "EC-01", "cuota pie departamento ", 16))
         assertFalse("otra cuota", R.esDuplicado(existentes, "UF-02", "EC-01", "Cuota pie departamento", 17))
-        // FA-12: para "modificar" se anula y se registra de nuevo -> el anulado no bloquea
         assertFalse(R.esDuplicado(listOf(comp("A", "Anulado")), "UF-02", "EC-01", "Cuota pie departamento", 16))
     }
-
-    // ---------------- RN-21: anulación (HU-11 CA-3, CA-4)
 
     @Test
     fun anulacion() {
@@ -109,8 +92,6 @@ class RolesInternosTest {
         assertNotNull("Otro sin comentario", R.validarAnulacion(comp("A", "Vencido"), "EC-01", "Otro", " "))
         assertNull(R.validarAnulacion(comp("A", "Vencido"), "EC-01", "Otro", "Acuerdo con la persona"))
     }
-
-    // ---------------- RN-24: tasa de cobranza
 
     @Test
     fun ejemploRN24_104de118_es88coma1() {
@@ -132,13 +113,11 @@ class RolesInternosTest {
         assertEquals(14, r.vencidos)
         assertEquals(88.1, r.tasa!!, 0.0001)
         assertEquals(104 * 300000.0, r.montoRecaudado, 0.001)
-        // otro mes: sin compromisos
         assertNull(R.resumenDelMes(compromisos, pagos, "2026-10").tasa)
     }
 
     @Test
     fun hu12CA1_AltosDelMaipoSeptiembre() {
-        // Cartera sintética + el compromiso real de septiembre de Altos del Maipo (CP-2026-0106, vencido)
         val compromisos = CobranzaSeptiembreSintetica.compromisos.filter { it.idEmpresa == "EC-01" } +
             CompromisoEntity("CP-2026-0106", "CP-2026-0106", "UF-02", "EC-01", "Cuota pie departamento", 14, 36, 310000.0, "2026-09-30", "Vencido", 8500.0)
         val ids = compromisos.map { it.idCompromiso }.toSet()

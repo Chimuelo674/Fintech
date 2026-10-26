@@ -16,18 +16,12 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
-// ViewModels de las pantallas del usuario final (R-01). Cada uno recibe el repositorio y el
-// usuario con sesión, y entrega a su pantalla un único estado observable.
-
-// ------------------------------------------------------------------------------- Inicio
 class InicioViewModel(repo: PagoFlexRepository, idUsuario: String) : BaseViewModel() {
-
     data class Estado(
         val compromisos: List<CompromisoEntity> = emptyList(),
         val empresas: Map<String, EmpresaEntity> = emptyMap(),
         val reconocimientos: List<ReconocimientoEntity> = emptyList(),
         val cumplimiento: Cumplimiento? = null,
-        /** Descripción de cada reconocimiento (viene del catálogo, no se repite por usuario). */
         val descripcionReconocimiento: Map<String, String> = emptyMap()
     )
 
@@ -42,14 +36,11 @@ class InicioViewModel(repo: PagoFlexRepository, idUsuario: String) : BaseViewMod
     }.comoEstado(Estado())
 
     init {
-        // Al entrar, lo vencido pasa a Vencido con su recargo (RN-02, RN-03)
         viewModelScope.launch { repo.sincronizarEstados() }
     }
 }
 
-// --------------------------------------------------------------------- Detalle (RF-04)
 class DetalleCompromisoViewModel(repo: PagoFlexRepository, idUsuario: String, idCompromiso: String) : BaseViewModel() {
-
     data class Estado(
         val cargado: Boolean = false,
         val compromiso: CompromisoEntity? = null,
@@ -75,13 +66,11 @@ class DetalleCompromisoViewModel(repo: PagoFlexRepository, idUsuario: String, id
     }.comoEstado(Estado())
 }
 
-// ------------------------------------------------------------------------ Pago (RF-05)
 class PagoViewModel(
     private val repo: PagoFlexRepository,
     private val idUsuario: String,
     idCompromiso: String
 ) : BaseViewModel() {
-
     data class Estado(
         val compromiso: CompromisoEntity? = null,
         val empresa: EmpresaEntity? = null,
@@ -99,7 +88,6 @@ class PagoViewModel(
         }
     }
 
-    /** Pago simulado (Aclaración 5: atómico). Al confirmar entrega el N° de comprobante. */
     fun pagar(medioPago: String, onPagado: (String) -> Unit) {
         val c = _estado.value.compromiso ?: return
         if (_estado.value.procesando) return
@@ -117,9 +105,7 @@ class PagoViewModel(
     }
 }
 
-// ----------------------------------------------------------------- Comprobante (RF-06)
 class ComprobanteViewModel(repo: PagoFlexRepository, idUsuario: String, idPagoOCompromiso: String) : BaseViewModel() {
-
     data class Estado(
         val cargando: Boolean = true,
         val pago: PagoEntity? = null,
@@ -132,10 +118,8 @@ class ComprobanteViewModel(repo: PagoFlexRepository, idUsuario: String, idPagoOC
 
     init {
         viewModelScope.launch {
-            // Acepta un N° de comprobante (desde el pago) o un id de compromiso (desde el historial)
             val p = repo.getPagoByNumero(idPagoOCompromiso) ?: repo.getPagoByCompromiso(idPagoOCompromiso)
             val c = p?.let { repo.getCompromisoById(it.idCompromiso) }
-            // Solo se muestran comprobantes de la persona con sesión (la persona se obtiene vía compromiso)
             if (p != null && c != null && c.idUsuarioFinal == idUsuario) {
                 _estado.value = Estado(false, p, c, repo.getEmpresaById(c.idEmpresa))
             } else {
@@ -145,9 +129,7 @@ class ComprobanteViewModel(repo: PagoFlexRepository, idUsuario: String, idPagoOC
     }
 }
 
-// ------------------------------------------------------------------- Historial (RF-07)
 class HistorialViewModel(repo: PagoFlexRepository, idUsuario: String) : BaseViewModel() {
-
     data class Estado(
         val pagos: List<PagoEntity> = emptyList(),
         val compromisos: Map<String, CompromisoEntity> = emptyMap(),
@@ -163,9 +145,7 @@ class HistorialViewModel(repo: PagoFlexRepository, idUsuario: String) : BaseView
     }.comoEstado(Estado())
 }
 
-// --------------------------------------------------------------- Mis reportes (RF-09)
 class MisReportesViewModel(private val repo: PagoFlexRepository, private val idUsuario: String) : BaseViewModel() {
-
     data class Estado(
         val cargado: Boolean = false,
         val reportes: List<ReporteEntity> = emptyList(),
@@ -181,7 +161,6 @@ class MisReportesViewModel(private val repo: PagoFlexRepository, private val idU
         Estado(true, reportes, compromisos.associateBy { it.idCompromiso }, empresas.associateBy { it.idEmpresa })
     }.comoEstado(Estado())
 
-    /** [onTerminar] se llama siempre (con éxito o no) para cerrar el diálogo; el mensaje va al Snackbar. */
     fun crearReporte(idCompromiso: String, motivo: String, comentario: String, onTerminar: (exito: Boolean) -> Unit) {
         viewModelScope.launch {
             val r = repo.crearReporte(idUsuario, idCompromiso, motivo, comentario)
@@ -192,9 +171,7 @@ class MisReportesViewModel(private val repo: PagoFlexRepository, private val idU
     }
 }
 
-// --------------------------------------------------------------- Recomendar (RF-12)
 class RecomendarViewModel(private val repo: PagoFlexRepository, private val idUsuario: String) : BaseViewModel() {
-
     data class Estado(
         val recomendaciones: List<RecomendacionEntity> = emptyList(),
         val reconocimientos: List<ReconocimientoEntity> = emptyList()
@@ -205,7 +182,6 @@ class RecomendarViewModel(private val repo: PagoFlexRepository, private val idUs
         repo.getReconocimientosByUsuario(idUsuario)
     ) { recs, recon -> Estado(recs, recon) }.comoEstado(Estado())
 
-    /** [onError] recibe el mensaje para mostrarlo dentro del formulario (sin cerrarlo). */
     fun recomendar(datos: ReglasRecomendacion.Datos, onExito: () -> Unit, onError: (String) -> Unit) {
         viewModelScope.launch {
             repo.crearRecomendacion(idUsuario, datos)
@@ -218,13 +194,11 @@ class RecomendarViewModel(private val repo: PagoFlexRepository, private val idUs
     }
 }
 
-// --------------------------------------------------------------------- Avisos (RF-11)
 class AvisosViewModel(
     private val repo: PagoFlexRepository,
-    private val appContext: Context, // contexto de la aplicación (no de una Activity): no produce fugas
+    private val appContext: Context,
     idUsuario: String
 ) : BaseViewModel() {
-
     data class Estado(
         val compromisos: List<CompromisoEntity> = emptyList(),
         val nombreEmpresa: Map<String, String> = emptyMap(),
@@ -251,7 +225,6 @@ class AvisosViewModel(
         }
     }
 
-    /** Guarda la configuración y envía ahora los avisos que corresponden (respetando RN-15). */
     fun enviarAhora(
         usuario: UsuarioEntity,
         activos: Boolean,

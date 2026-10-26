@@ -3,18 +3,7 @@ package cl.duocuc.pagoflex.data.seed
 import cl.duocuc.pagoflex.data.local.entities.CompromisoEntity
 import cl.duocuc.pagoflex.data.local.entities.PagoEntity
 
-/**
- * Historial sintético de los últimos 12 meses (archivo generado, no editar a mano).
- *
- * El Anexo 9 entrega solo los compromisos de sep–oct 2026 y un resumen de cumplimiento
- * por persona (ej. UF-01: 36 compromisos considerados, 33 a tiempo). Para que el indicador
- * se CALCULE (RN-10, MER 2.3) y dé esos mismos valores, se agregan compromisos ya pagados
- * de meses anteriores, como permite la nota del Anexo 9 ("los equipos pueden generar más
- * datos de prueba coherentes con estos totales"). Folios CP-H-xxxx; comprobantes
- * CPR-000001… (anteriores al primero del anexo, CPR-000377).
- */
 object HistorialSintetico {
-
     val compromisos: List<CompromisoEntity> = listOf(
         CompromisoEntity("CP-H-0001", "CP-H-0001", "UF-05", "EC-02", "Mensualidad octubre 2025", 8, 10, 185000.0, "2025-10-10", "Pagado", 0.0, "EJ-02", "2025-09-10"),
         CompromisoEntity("CP-H-0002", "CP-H-0002", "UF-05", "EC-02", "Mensualidad segundo hijo octubre 2025", 8, 10, 185000.0, "2025-10-10", "Pagado", 0.0, "EJ-02", "2025-09-10"),

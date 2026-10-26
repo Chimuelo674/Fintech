@@ -6,7 +6,6 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface PagoDao {
-    // La persona y la empresa se obtienen vía compromiso (el pago no las repite)
     @Query(
         "SELECT p.* FROM pago p INNER JOIN compromiso c ON c.idCompromiso = p.idCompromiso " +
             "WHERE c.idUsuarioFinal = :idUsuario ORDER BY p.fechaHora DESC"
@@ -37,7 +36,6 @@ interface PagoDao {
     @Query("SELECT MAX(numeroComprobante) FROM pago WHERE numeroComprobante LIKE 'CPR-%'")
     suspend fun getMaxNumeroComprobante(): String?
 
-    // ABORT: un comprobante nunca se sobrescribe (RN-05)
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertPago(pago: PagoEntity)
 }

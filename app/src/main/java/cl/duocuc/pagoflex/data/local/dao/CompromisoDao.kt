@@ -12,14 +12,12 @@ interface CompromisoDao {
     @Query("SELECT * FROM compromiso ORDER BY fechaVencimiento ASC")
     fun getAllCompromisos(): Flow<List<CompromisoEntity>>
 
-    /** Último folio con el prefijo dado (ej. 'CP-2026-'), para el correlativo. */
     @Query("SELECT MAX(folio) FROM compromiso WHERE folio LIKE :prefijo || '%'")
     suspend fun getMaxFolio(prefijo: String): String?
 
     @Query("SELECT * FROM compromiso")
     suspend fun getAllCompromisosOnce(): List<CompromisoEntity>
 
-    /** Lectura puntual (no Flow), apta para usarse dentro de una transacción. */
     @Query("SELECT * FROM compromiso WHERE idUsuarioFinal = :idUsuario ORDER BY fechaVencimiento ASC")
     suspend fun getCompromisosByUsuarioOnce(idUsuario: String): List<CompromisoEntity>
 

@@ -34,7 +34,6 @@ fun RoleSelectionScreen(
     repository: PagoFlexRepository,
     onUserSelected: (UsuarioEntity) -> Unit
 ) {
-    // MVVM
     val viewModel = vm { SesionViewModel(repository) }
     val usuarios by viewModel.usuarios.collectAsState()
     val empresas by viewModel.empresas.collectAsState()
@@ -43,7 +42,6 @@ fun RoleSelectionScreen(
     val roles = listOf("USUARIO_FINAL", "AGENTE", "EJECUTIVO")
     val tabTitles = listOf("Usuario Final", "Agente PagoFlex", "Ejecutivo Empresa")
 
-    // Solo cuentas activas (AG-03 está inactivo en el Anexo 9 y no puede entrar)
     val usuariosFiltrados = usuarios.filter { it.idRol == roles[selectedTab] }
     val context = LocalContext.current
     val c = PF.colors
@@ -146,7 +144,6 @@ fun RoleSelectionScreen(
                             empresa = usuario.idEmpresa?.let { empresas[it] ?: it },
                             onClick = {
                                 viewModel.entrar(usuario) {
-                                    // Los avisos de vencimiento son para el usuario final con sesión en este teléfono
                                     AvisosPrefs.guardarUsuario(
                                         context, usuario.idUsuario.takeIf { usuario.idRol == "USUARIO_FINAL" }
                                     )
@@ -164,7 +161,7 @@ fun RoleSelectionScreen(
 @Composable
 fun UserCardItemStyled(
     usuario: UsuarioEntity,
-    empresa: String? = null, // solo ejecutivos: empresa cliente a la que pertenece (S-10)
+    empresa: String? = null,
     onClick: () -> Unit
 ) {
     val (icon: ImageVector, badgeText: String) = when (usuario.idRol) {
@@ -206,15 +203,12 @@ fun UserCardItemStyled(
             Spacer(modifier = Modifier.width(16.dp))
 
             Column(modifier = Modifier.weight(1f)) {
-                // El nombre usa todo el ancho; el código (UF-01, AG-01…) va como etiqueta abajo,
-                // así no compite por espacio con nombres largos.
                 Text(
                     text = "${usuario.nombres} ${usuario.apellidos}",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = c.textStrong
                 )
-                // Ejecutivo: a qué empresa (panel) pertenece
                 if (usuario.idRol == "EJECUTIVO" && empresa != null) {
                     Spacer(modifier = Modifier.height(2.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {

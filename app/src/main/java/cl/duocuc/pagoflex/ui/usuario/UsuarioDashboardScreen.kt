@@ -31,12 +31,10 @@ import java.util.Locale
 import cl.duocuc.pagoflex.ui.common.MensajesEnSnackbar
 import cl.duocuc.pagoflex.ui.common.vm
 
-/** Compromisos que se muestran en el inicio (RF-03): los vigentes y los del mes en curso. */
 private fun esVisibleEnInicio(c: CompromisoEntity): Boolean =
     c.estado == "Pendiente" || c.estado == "Vencido" || c.estado == "En revisión" ||
         c.fechaVencimiento.take(7) == Reloj.hoy().take(7)
 
-/** 91.7 -> "91,7%" (RN-10: un decimal; formato chileno). */
 fun formatearPorcentaje(p: Double): String = String.format(Locale("es", "CL"), "%.1f%%", p)
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -54,7 +52,6 @@ fun UsuarioDashboardScreen(
     onVerDetalle: (String) -> Unit,
     onLogout: () -> Unit
 ) {
-    // MVVM: el ViewModel entrega el estado de la pantalla (y al crearse sincroniza los estados por fecha)
     val viewModel = vm(key = "inicio-${usuario.idUsuario}") { InicioViewModel(repository, usuario.idUsuario) }
     val ui by viewModel.estado.collectAsState()
     val compromisos = ui.compromisos
@@ -62,8 +59,6 @@ fun UsuarioDashboardScreen(
     val cumplimiento = ui.cumplimiento
     val empresaMap = ui.empresas
 
-    // RF-02: "total por pagar del mes" = lo que vence este mes y aún no se paga, más lo que ya
-    // venció (con su recargo, RN-03). Los compromisos de meses siguientes no se suman.
     val mesActual = Reloj.hoy().take(7)
     val vencidos = compromisos.filter { it.estado == "Vencido" }
     val porPagar = compromisos.filter {
@@ -140,7 +135,6 @@ fun UsuarioDashboardScreen(
             contentPadding = PaddingValues(vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Resumen de la situación (RF-02, HU-01)
             item {
                 ResumenCard(
                     nombre = usuario.nombres.substringBefore(" "),
@@ -153,14 +147,12 @@ fun UsuarioDashboardScreen(
                 )
             }
 
-            // Accesos rápidos
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     QuickActionPill(Icons.Default.History, "Historial", onNavigateToHistorial, Modifier.weight(1f))
-                    // RF-09 / PB-08: la persona ve sus reportes y en qué va cada uno
                     QuickActionPill(
                         Icons.Default.ReportProblem,
                         "Reportes",
@@ -172,7 +164,6 @@ fun UsuarioDashboardScreen(
                 }
             }
 
-            // Reconocimientos (RF-13)
             if (reconocimientos.isNotEmpty()) {
                 item {
                     val r = reconocimientos.first()
@@ -197,7 +188,6 @@ fun UsuarioDashboardScreen(
                 }
             }
 
-            // Encabezado de la lista + desde cuándo está actualizada la información (RNF-08)
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
@@ -247,7 +237,6 @@ fun UsuarioDashboardScreen(
     }
 }
 
-/** Orden en la lista: primero lo que requiere acción. */
 private fun ordenEstado(estado: String) = when (estado) {
     "Vencido" -> 0
     "Pendiente" -> 1
@@ -281,7 +270,6 @@ private fun ResumenCard(
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                     Text("Hola $nombre, este mes tienes por pagar", color = c.onHeaderMuted, fontSize = 13.sp)
                     Spacer(modifier = Modifier.width(4.dp))
-                    // RNF-06: ocultar el monto si otra persona mira el teléfono
                     IconButton(onClick = onToggleMonto, modifier = Modifier.size(28.dp)) {
                         Icon(
                             imageVector = if (montoVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
@@ -327,7 +315,6 @@ private fun ResumenCard(
                     )
                 }
                 Column(modifier = Modifier.weight(1f)) {
-                    // RN-11 / HU-01 CA-2: se informa sin culpar
                     Text("Por ponerte al día", color = c.onHeaderMuted, fontSize = 12.sp)
                     Text(
                         text = if (cantidadVencidos == 0) "Nada" else "$cantidadVencidos",
@@ -394,7 +381,6 @@ fun CompromisoCardItemStyled(
     val totalMonto = compromiso.monto + if (vencido) compromiso.recargoAplicado else 0.0
     val (statusBg, statusFg) = PF.estado(compromiso.estado)
 
-    // RF-04: tocar la tarjeta abre el detalle del compromiso
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
@@ -407,7 +393,6 @@ fun CompromisoCardItemStyled(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // weight(1f): el texto ocupa solo el espacio que deja la etiqueta de estado
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                     Surface(shape = CircleShape, color = c.chip, modifier = Modifier.size(38.dp)) {
                         Box(contentAlignment = Alignment.Center) {
@@ -461,7 +446,6 @@ fun CompromisoCardItemStyled(
                 Column(modifier = Modifier.weight(1f)) {
                     Text("Vence el ${Fechas.mostrar(compromiso.fechaVencimiento)}", fontSize = 12.sp, color = c.textMuted)
                     if (vencido) {
-                        // RN-02 / RN-03 con tono positivo (RN-11, RNF-04): se informa, no se culpa
                         val dias = Fechas.diasAtraso(compromiso.fechaVencimiento)
                         Text(
                             text = "Venció hace $dias ${if (dias == 1) "día" else "días"}" +

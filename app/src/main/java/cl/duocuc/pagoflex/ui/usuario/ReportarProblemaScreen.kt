@@ -31,11 +31,6 @@ import cl.duocuc.pagoflex.ui.common.vm
 
 private val FILTROS = listOf("Todos", "En curso", "Resueltos")
 
-/**
- * "Mis reportes" (RF-09, HU-06): la persona ve todos los problemas que ha reportado, en qué
- * estado están y la respuesta de soporte. Si se abre desde un compromiso, permite reportarlo;
- * si ese compromiso ya tiene un reporte en curso, lo muestra en lugar de crear otro (HU-06 CA-2).
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReportarProblemaScreen(
@@ -47,7 +42,6 @@ fun ReportarProblemaScreen(
     val snackbar = remember { SnackbarHostState() }
     val c = PF.colors
 
-    // MVVM: datos y acción de reportar en el ViewModel; filtros y diálogos son estado de la pantalla
     val viewModel = vm(key = "reportes-${usuario.idUsuario}") { MisReportesViewModel(repository, usuario.idUsuario) }
     MensajesEnSnackbar(viewModel, snackbar)
     val ui by viewModel.estado.collectAsState()
@@ -62,7 +56,6 @@ fun ReportarProblemaScreen(
     var destacado by remember { mutableStateOf(idCompromisoInitial) }
     var yaRevisado by remember { mutableStateOf(false) }
 
-    // Al abrir desde un compromiso: decidir si se puede reportar o si ya hay uno en curso
     LaunchedEffect(reportes, compromisos) {
         val lista = reportes ?: return@LaunchedEffect
         if (yaRevisado || idCompromisoInitial == null || compromisos.isEmpty()) return@LaunchedEffect
@@ -84,14 +77,12 @@ fun ReportarProblemaScreen(
                 else -> true
             }
         }
-        // en curso primero, luego los más recientes
         .sortedWith(compareBy<ReporteEntity> { it.estado == "Resuelto" }.thenByDescending { it.fechaCreacion })
 
-    // Llevar la lista al reporte destacado
     val listState = rememberLazyListState()
     LaunchedEffect(destacado, visibles.size) {
         val i = visibles.indexOfFirst { it.idCompromiso == destacado }
-        if (i >= 0) listState.animateScrollToItem(i + 2) // +2: encabezado y filtros
+        if (i >= 0) listState.animateScrollToItem(i + 2)
     }
 
     Scaffold(
@@ -276,14 +267,12 @@ fun ReporteCardItem(
 
             HorizontalDivider(color = c.divider, modifier = Modifier.padding(vertical = 6.dp))
 
-            // PB-08: la persona sabe en qué va su caso
             when (reporte.estado) {
                 "Abierto" -> Text("Recibimos tu reporte. Un agente lo revisará pronto.", fontSize = 13.sp, color = c.textStrong)
                 "En gestión" -> Text("Un agente de soporte está revisando tu caso.", fontSize = 13.sp, color = c.textStrong)
                 else -> {
                     Text("Respuesta de soporte", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = c.pagadoFg)
                     Text(reporte.respuesta ?: "—", fontSize = 13.sp, color = c.textStrong)
-                    // HU-06 CA-3: el resultado (Anulado, o nuevamente Pendiente/Vencido)
                     compromiso?.let {
                         val resultado = when (it.estado) {
                             "Anulado" -> "La empresa anuló este cobro. No tienes que pagarlo."

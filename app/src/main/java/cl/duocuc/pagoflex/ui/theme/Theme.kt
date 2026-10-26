@@ -28,7 +28,6 @@ private val LightColorScheme = lightColorScheme(
     onSurfaceVariant = Color(0xFF3F4F4C),
     outline = PagoFlexTextMuted,
     outlineVariant = Color(0xFFCFE3DE),
-    // Contenedores que usan Card, diálogos y menús por defecto (sin esto salen lilas)
     surfaceContainerLowest = Color.White,
     surfaceContainerLow = Color(0xFFF7FBFA),
     surfaceContainer = Color(0xFFF0F7F5),
@@ -68,10 +67,6 @@ private val DarkColorScheme = darkColorScheme(
     surfaceContainerHighest = Color(0xFF22363A)
 )
 
-/**
- * Tema de la app. Por defecto usa la preferencia guardada (botón sol/luna en las barras
- * superiores); si la persona nunca eligió, sigue el modo del teléfono.
- */
 @Composable
 fun PagoFlexTheme(
     darkTheme: Boolean = TemaPreferencia.esOscuro(),

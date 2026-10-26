@@ -33,10 +33,9 @@ fun PagoScreen(
     idCompromiso: String,
     usuario: UsuarioEntity,
     repository: PagoFlexRepository,
-    onPagoConfirmado: (String) -> Unit, // returns numeroComprobante
+    onPagoConfirmado: (String) -> Unit,
     onBack: () -> Unit
 ) {
-    // MVVM: el ViewModel carga el compromiso y ejecuta el pago
     val viewModel = vm(key = "pago-$idCompromiso") { PagoViewModel(repository, usuario.idUsuario, idCompromiso) }
     val ui by viewModel.estado.collectAsState()
     val compromiso = ui.compromiso
@@ -44,7 +43,6 @@ fun PagoScreen(
     val errorMessage = ui.error
     val isLoading = ui.procesando
 
-    // Aclaración 1: medio simulado (solo el nombre). Mismos nombres que el catálogo medio_pago.
     val mediosPago = listOf("Tarjeta de débito", "Tarjeta de crédito", "Transferencia")
     var selectedMedioPago by remember { mutableStateOf(mediosPago[0]) }
 
@@ -78,8 +76,6 @@ fun PagoScreen(
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-
-                    // Info Card
                     Card(
                         shape = RoundedCornerShape(12.dp),
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
@@ -141,7 +137,6 @@ fun PagoScreen(
                         }
                     }
 
-                    // Medio de Pago Selector (Aclaración nº 1)
                     Card(
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.fillMaxWidth()
@@ -176,7 +171,6 @@ fun PagoScreen(
                         }
                     }
 
-                    // Aviso Seguridad (S-02, RN-19)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
@@ -210,7 +204,6 @@ fun PagoScreen(
                     }
                 }
 
-                // Confirm Button
                 Button(
                     onClick = { viewModel.pagar(selectedMedioPago, onPagoConfirmado) },
                     enabled = !isLoading,

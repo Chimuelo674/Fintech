@@ -34,10 +34,6 @@ import kotlinx.coroutines.launch
 import cl.duocuc.pagoflex.ui.common.MensajesEnSnackbar
 import cl.duocuc.pagoflex.ui.common.vm
 
-/**
- * Recomendar una organización y seguir su estado (RF-12, HU-08, RN-12 a RN-14).
- * La persona solo consulta el estado; lo cambia un agente comercial (RN-13).
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RecomendarOrganizacionScreen(
@@ -48,7 +44,6 @@ fun RecomendarOrganizacionScreen(
     val snackbar = remember { SnackbarHostState() }
     val c = PF.colors
 
-    // MVVM
     val viewModel = vm(key = "recomendar-${usuario.idUsuario}") { RecomendarViewModel(repository, usuario.idUsuario) }
     MensajesEnSnackbar(viewModel, snackbar)
     val ui by viewModel.estado.collectAsState()
@@ -128,7 +123,6 @@ fun RecomendarOrganizacionScreen(
     }
 }
 
-/** Formulario con las reglas de RN-12. [onEnviar] recibe los datos y una función para mostrar errores. */
 @Composable
 private fun FormularioRecomendacion(
     onEnviar: (ReglasRecomendacion.Datos, (String) -> Unit) -> Unit,
@@ -232,7 +226,6 @@ fun RecomendacionCardItem(recomendacion: RecomendacionEntity, reconocimiento: Re
                 fontSize = 12.sp, color = c.textMuted
             )
 
-            // Avance por etapas (RN-13)
             if (recomendacion.estado != "Descartada") {
                 Spacer(Modifier.height(6.dp))
                 Etapas(actual = recomendacion.estado)
@@ -244,7 +237,6 @@ fun RecomendacionCardItem(recomendacion: RecomendacionEntity, reconocimiento: Re
                 Text("Último cambio: ${Fechas.mostrar(it)}", fontSize = 12.sp, color = c.textMuted)
             }
 
-            // HU-08 CA-4: el reconocimiento asociado
             reconocimiento?.let { r ->
                 Spacer(Modifier.height(4.dp))
                 Surface(shape = RoundedCornerShape(12.dp), color = c.chip) {
@@ -260,11 +252,6 @@ fun RecomendacionCardItem(recomendacion: RecomendacionEntity, reconocimiento: Re
     }
 }
 
-/**
- * Línea de etapas: Recibida → Contactada → En evaluación → Se unió.
- * Dos filas con los mismos pesos (puntos arriba, nombres abajo) para que los nombres largos
- * puedan usar dos líneas sin descuadrar los puntos.
- */
 @Composable
 private fun Etapas(actual: String) {
     val c = PF.colors
@@ -274,7 +261,6 @@ private fun Etapas(actual: String) {
     val pesoConector = 0.2f
 
     Column(Modifier.fillMaxWidth()) {
-        // Fila 1: puntos y conectores
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             etapas.forEachIndexed { i, _ ->
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.weight(pesoEtapa)) {
@@ -294,7 +280,6 @@ private fun Etapas(actual: String) {
             }
         }
         Spacer(Modifier.height(4.dp))
-        // Fila 2: nombres (hasta dos líneas, centrados)
         Row(verticalAlignment = Alignment.Top, modifier = Modifier.fillMaxWidth()) {
             etapas.forEachIndexed { i, etapa ->
                 Text(

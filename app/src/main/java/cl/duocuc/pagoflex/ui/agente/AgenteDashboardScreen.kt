@@ -27,10 +27,6 @@ import kotlinx.coroutines.launch
 import cl.duocuc.pagoflex.ui.common.MensajesEnSnackbar
 import cl.duocuc.pagoflex.ui.common.vm
 
-/**
- * Panel del agente PagoFlex (R-02): reportes de problema (RF-14, RF-15) y
- * recomendaciones de organizaciones (RF-16).
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AgenteDashboardScreen(
@@ -41,7 +37,6 @@ fun AgenteDashboardScreen(
     val snackbar = remember { SnackbarHostState() }
     val c = PF.colors
 
-    // MVVM: datos y acciones en el ViewModel; pestaña, filtros y diálogos son estado de la pantalla
     val viewModel = vm(key = "agente-${agente.idUsuario}") { AgenteViewModel(repository, agente.idUsuario) }
     MensajesEnSnackbar(viewModel, snackbar)
     val ui by viewModel.estado.collectAsState()
@@ -53,7 +48,6 @@ fun AgenteDashboardScreen(
     val historialPorRec = ui.historialPorRec
     fun nombre(id: String?) = id?.let { usuarioMap[it]?.nombreCompleto ?: it } ?: "—"
 
-    // El área comercial parte en Recomendaciones; soporte, en Reportes
     var tab by remember { mutableIntStateOf(if (agente.area == "Comercial") 1 else 0) }
     var reporteAResolver by remember { mutableStateOf<ReporteEntity?>(null) }
     var recADescartar by remember { mutableStateOf<RecomendacionEntity?>(null) }
@@ -109,7 +103,6 @@ fun AgenteDashboardScreen(
         }
     }
 
-    // ---- Diálogo: responder y resolver (RF-15, RN-23)
     reporteAResolver?.let { r ->
         val comp = compromisoMap[r.idCompromiso]
         var respuesta by remember(r.idReporte) { mutableStateOf("") }
@@ -140,7 +133,7 @@ fun AgenteDashboardScreen(
             },
             confirmButton = {
                 Button(
-                    enabled = respuesta.isNotBlank(), // HU-10 CA-3: no se resuelve sin respuesta
+                    enabled = respuesta.isNotBlank(),
                     onClick = { viewModel.resolverReporte(r.idReporte, respuesta) { reporteAResolver = null } }
                 ) { Text("Resolver") }
             },
@@ -148,7 +141,6 @@ fun AgenteDashboardScreen(
         )
     }
 
-    // ---- Diálogo: descartar recomendación con motivo (RN-13)
     recADescartar?.let { rec ->
         var motivo by remember(rec.idRecomendacion) { mutableStateOf("") }
         AlertDialog(
@@ -173,8 +165,6 @@ fun AgenteDashboardScreen(
     }
 }
 
-// =========================================================================== Reportes
-
 private val FILTROS_REPORTE = listOf("Por atender", "Abierto", "En gestión", "Resuelto", "Todos")
 
 @Composable
@@ -191,7 +181,6 @@ private fun ReportesTab(
     var filtro by remember { mutableStateOf(FILTROS_REPORTE[0]) }
     val hoy = Reloj.hoy()
 
-    // RNF-14: lo más urgente primero (atrasados, luego abiertos, en gestión y resueltos)
     val visibles = reportes
         .filter {
             when (filtro) {
@@ -260,7 +249,7 @@ private fun ReportesTab(
                                 maxLines = 1, softWrap = false, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
                         }
                     }
-                    Text(nombre(comp?.idUsuarioFinal), fontWeight = FontWeight.SemiBold, color = c.textStrong) // persona vía compromiso
+                    Text(nombre(comp?.idUsuarioFinal), fontWeight = FontWeight.SemiBold, color = c.textStrong)
                     if (comp != null) {
                         val total = comp.monto + if (comp.estado == "Vencido") comp.recargoAplicado else 0.0
                         Text(
@@ -306,8 +295,6 @@ private fun ReportesTab(
         }
     }
 }
-
-// ==================================================================== Recomendaciones
 
 private val FILTROS_REC = listOf("Abiertas", "Cerradas", "Todas")
 
@@ -361,7 +348,6 @@ private fun RecomendacionesTab(
                     }
                     Text("${rec.idRecomendacion} · ${rec.rubro ?: "Sin rubro"} · ${rec.comuna ?: "Sin comuna"}", fontSize = 12.sp, color = c.textMuted)
                     Text("Recomendada por ${nombre(rec.idUsuarioFinal)} el ${Fechas.mostrar(rec.fecha)}", fontSize = 12.sp, color = c.textMuted)
-                    // RN-12: el contacto solo existe si la persona declaró que autorizó ser contactada
                     if (rec.autorizaContacto && rec.nombreContacto != null) {
                         Text(
                             "Contacto: ${rec.nombreContacto}" +
@@ -371,7 +357,6 @@ private fun RecomendacionesTab(
                         )
                     }
 
-                    // Historial de cambios (RNF-15)
                     historialPorRec[rec.idRecomendacion].orEmpty().forEach { h ->
                         Text(
                             "• ${Fechas.mostrar(h.fecha)} · ${h.estado} · ${nombre(h.idAgente)}" + (h.motivo?.let { " · $it" } ?: ""),

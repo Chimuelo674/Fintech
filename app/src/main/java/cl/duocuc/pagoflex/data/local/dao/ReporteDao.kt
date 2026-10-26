@@ -6,7 +6,6 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ReporteDao {
-    // reporte → compromiso → usuario (MER 2.3)
     @Query(
         "SELECT r.* FROM reporte r INNER JOIN compromiso c ON c.idCompromiso = r.idCompromiso " +
             "WHERE c.idUsuarioFinal = :idUsuario ORDER BY r.fechaCreacion DESC"

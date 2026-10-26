@@ -37,8 +37,6 @@ fun ComprobanteScreen(
     repository: PagoFlexRepository,
     onBackToHome: () -> Unit
 ) {
-    // MVVM. El parámetro puede ser un N° de comprobante (al venir desde el pago, "CPR-…")
-    // o un id de compromiso (al venir desde el historial, "CP-…"). Se aceptan ambos.
     val context = LocalContext.current
     val viewModel = vm(key = "comprobante-$idPago") { ComprobanteViewModel(repository, usuario.idUsuario, idPago) }
     val ui by viewModel.estado.collectAsState()
@@ -74,7 +72,6 @@ fun ComprobanteScreen(
                 }
             }
         } else {
-            // Ocultar RUT parcialmente (RNF-07): 15.834.207-3 -> 15.*.*-3 ; 6.893.541-5 -> 6.*.*-5
             val rutPartes = usuario.rut.split("-")
             val rutOculto = if (rutPartes.size == 2) {
                 "${rutPartes[0].substringBefore(".")}.*.*-${rutPartes[1]}"
@@ -95,8 +92,6 @@ fun ComprobanteScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(20.dp)) {
-
-                        // Header Status Success
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.fillMaxWidth()
@@ -118,7 +113,6 @@ fun ComprobanteScreen(
                         HorizontalDivider()
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        // Receipt Fields Table
                         ReceiptRow("Fecha y hora:", Fechas.mostrar(currentPago.fechaHora))
                         ReceiptRow("Pagado por:", "${usuario.nombreCompleto} · RUT $rutOculto")
                         ReceiptRow(
@@ -129,7 +123,6 @@ fun ComprobanteScreen(
                         ReceiptRow("Concepto:", "${currentCompromiso.concepto}${currentCompromiso.numeroCuota?.let { " (Cuota $it/${currentCompromiso.totalCuotas ?: "?"})" } ?: ""}")
                         ReceiptRow("Vencimiento:", Fechas.mostrar(currentCompromiso.fechaVencimiento))
                         ReceiptRow("Monto cuota:", CurrencyFormatter.formatCLP(currentCompromiso.monto))
-                        // El recargo no se guarda: es lo pagado menos el monto del compromiso (MER 2.3)
                         ReceiptRow("Recargo por atraso:", CurrencyFormatter.formatCLP((currentPago.montoPagado - currentCompromiso.monto).coerceAtLeast(0.0)))
 
                         Spacer(modifier = Modifier.height(8.dp))
@@ -147,7 +140,6 @@ fun ComprobanteScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     OutlinedButton(
-                        // RF-22: enviar el comprobante a otra persona (arrendador, colegio…) con el menú de Android
                         onClick = {
                             compartirComprobante(
                                 context,
@@ -191,7 +183,6 @@ fun ReceiptRow(label: String, value: String, isBold: Boolean = false) {
     }
 }
 
-/** Texto del comprobante para compartir: mismos datos que en pantalla, con el RUT parcialmente oculto (RNF-07). */
 private fun textoComprobante(p: PagoEntity, c: CompromisoEntity, e: EmpresaEntity?, pagadoPor: String): String {
     val recargo = (p.montoPagado - c.monto).coerceAtLeast(0.0)
     return buildString {

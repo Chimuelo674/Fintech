@@ -13,10 +13,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
-/**
- * Resultado del indicador de cumplimiento (RN-10, RN-11).
- * [porcentaje] es null cuando hay menos de 3 compromisos ("historial insuficiente").
- */
 data class Cumplimiento(
     val considerados: Int,
     val aTiempo: Int,
@@ -27,7 +23,6 @@ data class Cumplimiento(
 }
 
 class PagoFlexRepository(private val db: PagoFlexDatabase) {
-
     private val usuarioDao = db.usuarioDao()
     private val empresaDao = db.empresaDao()
     private val compromisoDao = db.compromisoDao()
@@ -38,35 +33,20 @@ class PagoFlexRepository(private val db: PagoFlexDatabase) {
     private val historialRecDao = db.historialRecomendacionDao()
     private val catalogoDao = db.catalogoDao()
 
-    // --- Catálogos ---
-    /** Descripción de cada reconocimiento (catálogo), por nombre. */
     fun getCatalogoReconocimientos(): Flow<Map<String, String>> =
         catalogoDao.getReconocimientos().map { lista -> lista.associate { it.nombre to it.descripcion } }
 
-    // --- Usuarios & Sesión ---
     fun getAllUsuarios(): Flow<List<UsuarioEntity>> = usuarioDao.getAllUsuarios()
     suspend fun getUsuarioById(id: String): UsuarioEntity? = usuarioDao.getUsuarioById(id)
     suspend fun updateUsuario(usuario: UsuarioEntity) = usuarioDao.updateUsuario(usuario)
 
-    // --- Empresas ---
     fun getAllEmpresas(): Flow<List<EmpresaEntity>> = empresaDao.getAllEmpresas()
     suspend fun getEmpresaById(id: String): EmpresaEntity? = empresaDao.getEmpresaById(id)
 
-    // --- Compromisos ---
     fun getCompromisosByUsuario(idUsuario: String): Flow<List<CompromisoEntity>> = compromisoDao.getCompromisosByUsuario(idUsuario)
     fun getCompromisosByEmpresa(idEmpresa: String): Flow<List<CompromisoEntity>> = compromisoDao.getCompromisosByEmpresa(idEmpresa)
     suspend fun getCompromisoById(id: String): CompromisoEntity? = compromisoDao.getCompromisoById(id)
 
-    // =====================================================================================
-    // Estados por fecha (RN-01, RN-02, RN-03)
-    // =====================================================================================
-
-    /**
-     * Pasa a "Vencido" todo compromiso "Pendiente" cuya fecha de vencimiento ya pasó
-     * (según la fecha de referencia), copiando el recargo vigente de su empresa (RN-03:
-     * se suma una sola vez, al vencer). Se llama al abrir la app y al entrar con una sesión.
-     * Pagado, Anulado y En revisión no se tocan.
-     */
     suspend fun sincronizarEstados() {
         db.withTransaction {
             val recargos = empresaDao.getAllEmpresasOnce().associate { it.idEmpresa to it.recargoAtraso }
@@ -81,10 +61,6 @@ class PagoFlexRepository(private val db: PagoFlexDatabase) {
         }
     }
 
-    /**
-     * Estado que corresponde a un compromiso impago según su fecha (RN-09: al resolver un
-     * reporte "vuelve a Pendiente o Vencido según la fecha"). Si queda Vencido, aplica el recargo.
-     */
     private suspend fun restaurarSegunFecha(c: CompromisoEntity): CompromisoEntity =
         if (Fechas.estaVencida(c.fechaVencimiento)) {
             val recargo = empresaDao.getEmpresaById(c.idEmpresa)?.recargoAtraso ?: 0.0
@@ -93,10 +69,6 @@ class PagoFlexRepository(private val db: PagoFlexDatabase) {
             c.copy(estado = "Pendiente", recargoAplicado = 0.0)
         }
 
-    // =====================================================================================
-    // Indicador de cumplimiento (RN-10, RN-11) — se calcula, no se guarda (MER 2.3)
-    // =====================================================================================
-
     fun getCumplimiento(idUsuario: String): Flow<Cumplimiento> =
         combine(
             compromisoDao.getCompromisosByUsuario(idUsuario),
@@ -104,15 +76,8 @@ class PagoFlexRepository(private val db: PagoFlexDatabase) {
         ) { compromisos, pagos -> calcularCumplimiento(compromisos, pagos) }
 
     companion object {
-        /** RN-09: motivos posibles de un reporte. */
         val MOTIVOS_REPORTE = listOf("Ya pagué por otro medio", "No reconozco este cobro", "El monto no corresponde", "Otro")
 
-        /**
-         * RN-10: % de compromisos pagados a tiempo (fecha de pago ≤ vencimiento) sobre los
-         * compromisos con vencimiento en los últimos 12 meses. Se excluyen Anulados,
-         * En revisión y los que aún no vencen. Con menos de 3: historial insuficiente.
-         * RN-11: ≥95 Ejemplar; 80–94,9 Al día; <80 En camino.
-         */
         fun calcularCumplimiento(
             compromisos: List<CompromisoEntity>,
             pagos: List<PagoEntity>,
@@ -133,7 +98,6 @@ class PagoFlexRepository(private val db: PagoFlexDatabase) {
             if (considerados.size < 3) {
                 return Cumplimiento(considerados.size, aTiempo, null, "Historial insuficiente")
             }
-            // Redondeo a un decimal: 33/36 = 91,666… -> 91,7
             val porcentaje = Math.round(aTiempo * 1000.0 / considerados.size) / 10.0
             val categoria = when {
                 porcentaje >= 95.0 -> "Ejemplar"
@@ -143,10 +107,6 @@ class PagoFlexRepository(private val db: PagoFlexDatabase) {
             return Cumplimiento(considerados.size, aTiempo, porcentaje, categoria)
         }
     }
-
-    // =====================================================================================
-    // Pago (RN-04, RN-05, RN-06, RN-08, RN-09, Aclaraciones 1, 5 y 6)
-    // =====================================================================================
 
     suspend fun validarOrdenPago(idUsuario: String, compromisoTarget: CompromisoEntity): Result<Unit> {
         if (compromisoTarget.estado == "En revisión") {
@@ -159,7 +119,6 @@ class PagoFlexRepository(private val db: PagoFlexDatabase) {
             return Result.failure(Exception("Este compromiso ya está pagado."))
         }
 
-        // RN-04: con la misma empresa se paga primero el de vencimiento más antiguo
         val compromisosUsuario = compromisoDao.getCompromisosByUsuarioOnce(idUsuario)
         val impagosMismaEmpresa = compromisosUsuario.filter {
             it.idEmpresa == compromisoTarget.idEmpresa && (it.estado == "Pendiente" || it.estado == "Vencido")
@@ -184,12 +143,8 @@ class PagoFlexRepository(private val db: PagoFlexDatabase) {
         compromiso: CompromisoEntity,
         medioPago: String
     ): Result<PagoEntity> {
-        // Aclaración nº 5: el pago y el cambio a "Pagado" ocurren en una sola transacción.
-        // Si algo falla, no queda ni el comprobante ni el compromiso como Pagado.
         return try {
             db.withTransaction {
-                // Se relee el compromiso dentro de la transacción para no pagar sobre un estado
-                // desactualizado (ej. ya pagado por otro canal, RN-07, o pasado a En revisión).
                 val actual = compromisoDao.getCompromisoById(compromiso.idCompromiso)
                     ?: throw IllegalStateException("No encontramos este compromiso.")
                 if (pagoDao.getPagoByCompromiso(actual.idCompromiso) != null) {
@@ -206,12 +161,11 @@ class PagoFlexRepository(private val db: PagoFlexDatabase) {
                     numeroComprobante = numeroComprobante,
                     idCompromiso = actual.idCompromiso,
                     fechaHora = ahora,
-                    montoPagado = actual.monto + recargo, // RN-06: solo el total
+                    montoPagado = actual.monto + recargo,
                     canal = "App",
                     medioPago = medioPago
                 )
 
-                // Primero el comprobante, luego el estado: ambos o ninguno.
                 pagoDao.insertPago(pago)
                 compromisoDao.updateCompromiso(actual.copy(estado = "Pagado"))
                 pago
@@ -221,27 +175,19 @@ class PagoFlexRepository(private val db: PagoFlexDatabase) {
         }
     }
 
-    /** Correlativo CPR-000454, CPR-000455… continuando desde el último comprobante guardado. */
     private suspend fun generarNumeroComprobante(): String {
         val ultimo = pagoDao.getMaxNumeroComprobante()
             ?.removePrefix("CPR-")?.toIntOrNull() ?: 0
         return "CPR-%06d".format(ultimo + 1)
     }
 
-    // --- Pagos e Historial ---
     fun getPagosByUsuario(idUsuario: String): Flow<List<PagoEntity>> = pagoDao.getPagosByUsuario(idUsuario)
     suspend fun getPagoByCompromiso(idCompromiso: String): PagoEntity? = pagoDao.getPagoByCompromiso(idCompromiso)
     suspend fun getPagoByNumero(numeroComprobante: String): PagoEntity? = pagoDao.getPagoByNumero(numeroComprobante)
 
-    // --- Reportes de Problemas ---
     fun getReportesByUsuario(idUsuario: String): Flow<List<ReporteEntity>> = reporteDao.getReportesByUsuario(idUsuario)
     fun getAllReportes(): Flow<List<ReporteEntity>> = reporteDao.getAllReportes()
 
-    /**
-     * RF-09 / RN-09: la persona reporta un problema con un compromiso suyo que está Pendiente
-     * o Vencido. El compromiso pasa a En revisión (y no se puede pagar). Un compromiso solo
-     * puede tener un reporte abierto a la vez (HU-06 CA-2). "Otro" exige comentario.
-     */
     suspend fun crearReporte(idUsuario: String, idCompromiso: String, motivo: String, comentario: String): Result<ReporteEntity> = try {
         db.withTransaction {
             val comp = compromisoDao.getCompromisoById(idCompromiso)
@@ -274,7 +220,6 @@ class PagoFlexRepository(private val db: PagoFlexDatabase) {
 
     suspend fun getReporteById(id: String): ReporteEntity? = reporteDao.getReporteById(id)
 
-    /** RN-23: el agente toma un reporte Abierto; pasa a En gestión y queda como responsable. */
     suspend fun tomarReporte(idReporte: String, idAgente: String): Result<Unit> = try {
         db.withTransaction {
             val r = reporteDao.getReporteById(idReporte) ?: throw IllegalStateException("No encontramos el reporte.")
@@ -288,11 +233,6 @@ class PagoFlexRepository(private val db: PagoFlexDatabase) {
         Result.failure(e)
     }
 
-    /**
-     * RN-23: solo el agente responsable puede resolver un reporte En gestión, y debe escribir
-     * la respuesta para el usuario. El agente no anula: si la empresa ya anuló el compromiso
-     * (RN-21) queda Anulado; si no, el compromiso vuelve a Pendiente o Vencido según la fecha (RN-09).
-     */
     suspend fun resolverReporte(idReporte: String, idAgente: String, respuesta: String): Result<Unit> = try {
         db.withTransaction {
             val r = reporteDao.getReporteById(idReporte) ?: throw IllegalStateException("No encontramos el reporte.")
@@ -314,15 +254,9 @@ class PagoFlexRepository(private val db: PagoFlexDatabase) {
         Result.failure(e)
     }
 
-    // --- Recomendaciones ---
     fun getRecomendacionesByUsuario(idUsuario: String): Flow<List<RecomendacionEntity>> = recomendacionDao.getRecomendacionesByUsuario(idUsuario)
     fun getAllRecomendaciones(): Flow<List<RecomendacionEntity>> = recomendacionDao.getAllRecomendaciones()
 
-    /**
-     * RF-12 / RN-12: registra una recomendación en estado Recibida. Valida los datos, que la
-     * persona no haya recomendado antes la misma organización (HU-08 CA-3) y el máximo de 5
-     * por mes. Los datos de contacto solo se guardan si la persona declaró la autorización.
-     */
     suspend fun crearRecomendacion(idUsuario: String, datos: ReglasRecomendacion.Datos): Result<RecomendacionEntity> = try {
         ReglasRecomendacion.validar(datos)?.let { throw IllegalArgumentException(it) }
         db.withTransaction {
@@ -352,7 +286,6 @@ class PagoFlexRepository(private val db: PagoFlexDatabase) {
                 fecha = hoy,
                 estado = "Recibida"
             )
-            // Rubro y comuna son catálogos (FK): si la persona escribió uno nuevo, se agrega al catálogo
             catalogoDao.insertRubros(listOf(RubroEntity(rec.rubro!!)))
             catalogoDao.insertComunas(listOf(ComunaEntity(rec.comuna!!)))
             recomendacionDao.insertRecomendacion(rec)
@@ -364,11 +297,6 @@ class PagoFlexRepository(private val db: PagoFlexDatabase) {
 
     fun getHistorialRecomendaciones(): Flow<List<HistorialRecomendacionEntity>> = historialRecDao.getAll()
 
-    /**
-     * RN-13: solo un agente cambia el estado, sin saltarse etapas, y cada cambio queda en el
-     * historial con agente y fecha (RNF-15). Descartar exige motivo.
-     * RN-14: al pasar a "Se unió", quien recomendó recibe un reconocimiento simbólico.
-     */
     suspend fun cambiarEstadoRecomendacion(
         idRecomendacion: String,
         idAgente: String,
@@ -410,12 +338,7 @@ class PagoFlexRepository(private val db: PagoFlexDatabase) {
         Result.failure(e)
     }
 
-    // --- Reconocimientos ---
     fun getReconocimientosByUsuario(idUsuario: String): Flow<List<ReconocimientoEntity>> = reconocimientoDao.getReconocimientosByUsuario(idUsuario)
-
-    // =====================================================================================
-    // Ejecutivo de empresa cliente (RF-17 a RF-20, RN-20 a RN-22, RN-24)
-    // =====================================================================================
 
     fun getAllCompromisos(): Flow<List<CompromisoEntity>> = compromisoDao.getAllCompromisos()
     fun getPagosByEmpresa(idEmpresa: String): Flow<List<PagoEntity>> = pagoDao.getPagosByEmpresa(idEmpresa)
@@ -423,14 +346,8 @@ class PagoFlexRepository(private val db: PagoFlexDatabase) {
     suspend fun buscarUsuarioFinalPorRut(rut: String): UsuarioEntity? =
         usuarioDao.getAllUsuariosOnce().firstOrNull { it.idRol == "USUARIO_FINAL" && Rut.mismoRut(it.rut, rut) }
 
-    /** Datos básicos para registrar a una persona que aún no existe en PagoFlex (RN-20). */
     data class PersonaNueva(val nombres: String, val apellidos: String, val correo: String, val telefono: String)
 
-    /**
-     * RF-18 / RN-20. [fechaVencimiento] en formato interno yyyy-MM-dd (o null si es inválida).
-     * Si la persona no existe, se crea con [personaNueva]. El compromiso queda Pendiente, con
-     * folio correlativo (CP-2026-0113…) y el ejecutivo que lo registró.
-     */
     suspend fun registrarCompromiso(
         idEjecutivo: String,
         idEmpresa: String,
@@ -487,7 +404,6 @@ class PagoFlexRepository(private val db: PagoFlexDatabase) {
         }
         if (!p.correo.contains("@")) throw IllegalArgumentException("El correo no es válido.")
         val todos = usuarioDao.getAllUsuariosOnce()
-        // Correo y RUT son únicos en la base (MER): se avisa con un mensaje claro antes de insertar
         if (todos.any { it.correo.equals(p.correo.trim(), ignoreCase = true) }) {
             throw IllegalArgumentException("Ese correo ya está registrado en PagoFlex.")
         }
@@ -509,7 +425,6 @@ class PagoFlexRepository(private val db: PagoFlexDatabase) {
         return nuevo
     }
 
-    /** RF-19 / RN-21: solo compromisos Pendientes, Vencidos o En revisión de la propia empresa. */
     suspend fun anularCompromiso(
         idCompromiso: String,
         idEjecutivo: String,

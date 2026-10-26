@@ -11,7 +11,7 @@ import androidx.room.PrimaryKey
     foreignKeys = [ForeignKey(entity = RubroEntity::class, parentColumns = ["nombre"], childColumns = ["rubro"])]
 )
 data class EmpresaEntity(
-    @PrimaryKey val idEmpresa: String, // e.g. "EC-01"
+    @PrimaryKey val idEmpresa: String,
     val razonSocial: String,
     val nombreFantasia: String,
     val rut: String,

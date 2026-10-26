@@ -30,7 +30,6 @@ import cl.duocuc.pagoflex.util.Reloj
 import cl.duocuc.pagoflex.ui.common.MensajesEnSnackbar
 import cl.duocuc.pagoflex.ui.common.vm
 
-/** Una línea del historial: un pago (de cualquier canal) o un compromiso anulado. */
 private sealed class Movimiento(val fecha: String, val compromiso: CompromisoEntity?, val idEmpresa: String) {
     class Pagado(val pago: PagoEntity, c: CompromisoEntity?) : Movimiento(pago.fechaHora, c, c?.idEmpresa ?: "")
     class Anulado(c: CompromisoEntity) : Movimiento(c.fechaAnulacion ?: c.fechaVencimiento, c, c.idEmpresa)
@@ -38,11 +37,6 @@ private sealed class Movimiento(val fecha: String, val compromiso: CompromisoEnt
 
 private val PERIODOS = listOf("Todo", "Este mes", "Últimos 3 meses", "2026", "2025")
 
-/**
- * Historial (RF-07, HU-04): pagos hechos por la app, el portal o el agente conversacional
- * (RN-07), con filtros por empresa y período. Los compromisos anulados aparecen marcados
- * como Anulado, no como deuda ni como pago (HU-04 CA-3).
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistorialScreen(
@@ -52,7 +46,6 @@ fun HistorialScreen(
     onBack: () -> Unit
 ) {
     val c = PF.colors
-    // MVVM: pagos, compromisos y empresas vienen del ViewModel; los filtros son estado de la pantalla
     val viewModel = vm(key = "historial-${usuario.idUsuario}") { HistorialViewModel(repository, usuario.idUsuario) }
     val ui by viewModel.estado.collectAsState()
     val pagos = ui.pagos
@@ -60,7 +53,7 @@ fun HistorialScreen(
     val compromisos = compromisoMap.values.toList()
     val empresaMap = ui.empresas
 
-    var empresaFiltro by remember { mutableStateOf<String?>(null) } // null = todas
+    var empresaFiltro by remember { mutableStateOf<String?>(null) }
     var periodo by remember { mutableStateOf(PERIODOS[0]) }
 
     val movimientos: List<Movimiento> = remember(pagos, compromisos) {
@@ -88,7 +81,6 @@ fun HistorialScreen(
 
     val pagosVisibles = visibles.filterIsInstance<Movimiento.Pagado>()
     val totalPagado = pagosVisibles.sumOf { it.pago.montoPagado }
-    // "¿A tiempo?" se calcula: fecha de pago ≤ fecha de vencimiento (RN-10, MER 2.3)
     val aTiempo = pagosVisibles.count { m -> m.compromiso?.let { m.pago.fechaHora.take(10) <= it.fechaVencimiento } ?: true }
 
     Scaffold(
@@ -107,7 +99,6 @@ fun HistorialScreen(
             contentPadding = PaddingValues(vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // Filtro por empresa
             item {
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -123,7 +114,6 @@ fun HistorialScreen(
                     }
                 }
             }
-            // Filtro por período
             item {
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -132,7 +122,6 @@ fun HistorialScreen(
                     items(PERIODOS) { p -> FilterChip(selected = periodo == p, onClick = { periodo = p }, label = { Text(p) }) }
                 }
             }
-            // Resumen de lo filtrado
             item {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = c.chip),

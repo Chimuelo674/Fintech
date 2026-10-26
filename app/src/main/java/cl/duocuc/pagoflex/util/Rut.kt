@@ -1,9 +1,6 @@
 package cl.duocuc.pagoflex.util
 
-/** RUT chileno: validación del dígito verificador por módulo 11 (RN-18). */
 object Rut {
-
-    /** "15.834.207-3", "158342073" o "15834207-3" -> "158342073" (sin puntos ni guion, DV en mayúscula). */
     fun limpiar(rut: String): String = rut.replace(".", "").replace("-", "").replace(" ", "").uppercase()
 
     fun dvCalculado(cuerpo: String): Char {
@@ -28,7 +25,6 @@ object Rut {
         return dvCalculado(cuerpo) == limpio.last()
     }
 
-    /** "158342073" -> "15.834.207-3" */
     fun formatear(rut: String): String {
         val limpio = limpiar(rut)
         if (limpio.length < 2) return rut

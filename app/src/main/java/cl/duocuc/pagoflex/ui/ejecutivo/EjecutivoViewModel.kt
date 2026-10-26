@@ -9,16 +9,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
-/**
- * ViewModel del panel del ejecutivo (RF-17 a RF-20). Solo expone datos de SU empresa
- * (RN-22): compromisos, pagos y los reportes de esos compromisos.
- */
 class EjecutivoViewModel(
     private val repo: PagoFlexRepository,
     private val idEjecutivo: String,
     private val idEmpresa: String
 ) : BaseViewModel() {
-
     data class Estado(
         val empresa: EmpresaEntity? = null,
         val compromisos: List<CompromisoEntity> = emptyList(),
@@ -61,7 +56,6 @@ class EjecutivoViewModel(
         onExito = { onExito() }
     )
 
-    /** [onError] muestra el problema dentro del formulario, sin cerrarlo. */
     fun registrar(
         rut: String,
         concepto: String,

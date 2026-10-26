@@ -2,7 +2,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- RF-11: avisos de vencimiento (Android 13+ pide permiso para notificar) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application

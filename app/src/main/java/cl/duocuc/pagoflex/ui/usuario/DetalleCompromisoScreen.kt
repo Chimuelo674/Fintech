@@ -23,11 +23,6 @@ import cl.duocuc.pagoflex.util.Fechas
 import cl.duocuc.pagoflex.ui.common.MensajesEnSnackbar
 import cl.duocuc.pagoflex.ui.common.vm
 
-/**
- * Detalle de un compromiso (RF-04, HU-02): qué se está pagando, con el recargo y el total
- * cuando está vencido (RN-02, RN-03), el folio para citarlo, el pago si existe y el reporte
- * si lo hay. Incluye el contacto de la empresa (RF-24, deseable).
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DetalleCompromisoScreen(
@@ -40,7 +35,6 @@ fun DetalleCompromisoScreen(
     onBack: () -> Unit
 ) {
     val c = PF.colors
-    // MVVM: el estado se actualiza solo (ej. después de pagar o de reportar)
     val viewModel = vm(key = "detalle-$idCompromiso") { DetalleCompromisoViewModel(repository, usuario.idUsuario, idCompromiso) }
     val ui by viewModel.estado.collectAsState()
     val comp = ui.compromiso
@@ -75,7 +69,6 @@ fun DetalleCompromisoScreen(
             modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Encabezado: empresa, concepto y estado
             Card(colors = CardDefaults.cardColors(containerColor = c.card), modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -95,7 +88,6 @@ fun DetalleCompromisoScreen(
                 }
             }
 
-            // Montos (HU-02 CA-2)
             Card(colors = CardDefaults.cardColors(containerColor = c.card), modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Linea("Vence el", Fechas.mostrar(comp.fechaVencimiento))
@@ -130,7 +122,6 @@ fun DetalleCompromisoScreen(
                 }
             }
 
-            // Pago (si existe)
             pago?.let { p ->
                 Card(colors = CardDefaults.cardColors(containerColor = c.card), modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -143,7 +134,6 @@ fun DetalleCompromisoScreen(
                 }
             }
 
-            // Reporte (si existe)
             reporte?.let { r ->
                 Card(colors = CardDefaults.cardColors(containerColor = c.card), modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -155,7 +145,6 @@ fun DetalleCompromisoScreen(
                 }
             }
 
-            // Contacto de la empresa (RF-24, deseable)
             empresa?.let { e ->
                 Card(colors = CardDefaults.cardColors(containerColor = c.chip), modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -166,7 +155,6 @@ fun DetalleCompromisoScreen(
                 }
             }
 
-            // Acciones
             when (comp.estado) {
                 "Pendiente", "Vencido" -> {
                     Button(

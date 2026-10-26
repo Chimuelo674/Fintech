@@ -50,12 +50,10 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.navigation.compose)
 
-    // Room Database
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
 
-    // Avisos de vencimiento en segundo plano (RF-11)
     implementation(libs.androidx.work.runtime)
 
     testImplementation(libs.junit)

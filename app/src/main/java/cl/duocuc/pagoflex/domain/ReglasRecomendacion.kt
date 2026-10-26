@@ -3,9 +3,7 @@ package cl.duocuc.pagoflex.domain
 import cl.duocuc.pagoflex.data.local.entities.RecomendacionEntity
 import cl.duocuc.pagoflex.util.Rut
 
-/** Reglas para que un usuario final recomiende una organización (RF-12, RN-12). */
 object ReglasRecomendacion {
-
     const val MAXIMO_POR_MES = 5
 
     data class Datos(
@@ -22,23 +20,14 @@ object ReglasRecomendacion {
             get() = nombreContacto.isNotBlank() || correoContacto.isNotBlank() || telefonoContacto.isNotBlank()
     }
 
-    /** "  Jardín  Infantil " -> "jardín infantil" (para detectar la misma organización). */
     fun normalizar(nombre: String): String = nombre.trim().lowercase().replace(Regex("\\s+"), " ")
 
-    /** Recomendación existente del mismo usuario para esa organización, si la hay (HU-08 CA-3). */
     fun buscarDuplicada(existentes: List<RecomendacionEntity>, nombreOrganizacion: String): RecomendacionEntity? =
         existentes.firstOrNull { normalizar(it.nombreOrganizacion) == normalizar(nombreOrganizacion) }
 
     fun usadasEnElMes(existentes: List<RecomendacionEntity>, mes: String): Int =
         existentes.count { it.fecha.take(7) == mes }
 
-    /**
-     * Devuelve el error a mostrar, o null si los datos cumplen RN-12:
-     * - obligatorios: nombre de la organización, rubro y comuna;
-     * - RUT de la organización opcional, pero con dígito verificador válido si se ingresa (RN-18);
-     * - datos de contacto opcionales y SOLO si la persona declara que el contacto autorizó
-     *   ser contactado por PagoFlex (HU-08 CA-2); si los ingresa, nombre y un medio de contacto.
-     */
     fun validar(d: Datos): String? = when {
         d.nombreOrganizacion.isBlank() -> "Ingresa el nombre de la organización."
         d.rubro.isBlank() -> "Indica el rubro (por ejemplo, jardín infantil o club deportivo)."
@@ -53,6 +42,5 @@ object ReglasRecomendacion {
         else -> null
     }
 
-    /** Etapas visibles para el usuario (RN-13). */
     val ETAPAS = listOf("Recibida", "Contactada", "En evaluación", "Se unió")
 }

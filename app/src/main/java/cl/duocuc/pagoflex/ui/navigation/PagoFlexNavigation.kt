@@ -41,7 +41,6 @@ fun PagoFlexNavigation(repository: PagoFlexRepository) {
         navController = navController,
         startDestination = Screen.RoleSelection
     ) {
-        // 1. Selector de Rol / Sesión Simulada (RF-01)
         composable(Screen.RoleSelection) {
             RoleSelectionScreen(
                 repository = repository,
@@ -61,7 +60,6 @@ fun PagoFlexNavigation(repository: PagoFlexRepository) {
             )
         }
 
-        // 2. Dashboard Usuario Final (R-01)
         composable(Screen.UsuarioDashboard) {
             val user = currentUser
             if (user != null) {
@@ -87,7 +85,6 @@ fun PagoFlexNavigation(repository: PagoFlexRepository) {
                         navController.navigate("${Screen.Comprobante}/$idCompromiso")
                     },
                     onNavigateToMisReportes = {
-                        // "0" = sin compromiso: abre la lista de reportes sin crear uno nuevo
                         navController.navigate("${Screen.ReportarProblema}/0")
                     },
                     onVerDetalle = { idCompromiso ->
@@ -104,7 +101,6 @@ fun PagoFlexNavigation(repository: PagoFlexRepository) {
             }
         }
 
-        // 2b. Detalle de un compromiso (RF-04)
         composable(
             route = "${Screen.DetalleCompromiso}/{idCompromiso}",
             arguments = listOf(navArgument("idCompromiso") { type = NavType.StringType })
@@ -124,7 +120,6 @@ fun PagoFlexNavigation(repository: PagoFlexRepository) {
             }
         }
 
-        // 3. Proceso de Pago
         composable(
             route = "${Screen.Pago}/{idCompromiso}",
             arguments = listOf(navArgument("idCompromiso") { type = NavType.StringType })
@@ -146,7 +141,6 @@ fun PagoFlexNavigation(repository: PagoFlexRepository) {
             }
         }
 
-        // 4. Comprobante de Pago (RF-06)
         composable(
             route = "${Screen.Comprobante}/{idPago}",
             arguments = listOf(navArgument("idPago") { type = NavType.StringType })
@@ -165,7 +159,6 @@ fun PagoFlexNavigation(repository: PagoFlexRepository) {
             }
         }
 
-        // 5. Historial de Pagos (RF-07)
         composable(Screen.Historial) {
             val user = currentUser
             if (user != null) {
@@ -180,7 +173,6 @@ fun PagoFlexNavigation(repository: PagoFlexRepository) {
             }
         }
 
-        // 6. Reportar Problema (RF-09)
         composable(
             route = "${Screen.ReportarProblema}/{idCompromiso}",
             arguments = listOf(navArgument("idCompromiso") { type = NavType.StringType })
@@ -197,7 +189,6 @@ fun PagoFlexNavigation(repository: PagoFlexRepository) {
             }
         }
 
-        // 7. Configuración de Avisos (RF-11)
         composable(Screen.ConfiguracionAvisos) {
             val user = currentUser
             if (user != null) {
@@ -209,7 +200,6 @@ fun PagoFlexNavigation(repository: PagoFlexRepository) {
             }
         }
 
-        // 8. Recomendar Organización (RF-12)
         composable(Screen.RecomendarOrganizacion) {
             val user = currentUser
             if (user != null) {
@@ -221,7 +211,6 @@ fun PagoFlexNavigation(repository: PagoFlexRepository) {
             }
         }
 
-        // 9. Dashboard Agente PagoFlex (R-02)
         composable(Screen.AgenteDashboard) {
             val user = currentUser
             if (user != null) {
@@ -239,7 +228,6 @@ fun PagoFlexNavigation(repository: PagoFlexRepository) {
             }
         }
 
-        // 10. Dashboard Ejecutivo Empresa Cliente (R-03)
         composable(Screen.EjecutivoDashboard) {
             val user = currentUser
             if (user != null) {

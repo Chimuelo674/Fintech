@@ -5,21 +5,7 @@ import cl.duocuc.pagoflex.data.local.entities.PagoEntity
 import cl.duocuc.pagoflex.data.local.entities.UsuarioEntity
 import cl.duocuc.pagoflex.util.Rut
 
-/**
- * Cartera sintética de septiembre 2026 para que el resumen del ejecutivo (RF-20, RN-24)
- * coincida con la tabla "Resumen de cobranza de septiembre 2026 por empresa" del Anexo 9
- * (ej. HU-12 CA-1: Altos del Maipo, 120 compromisos, 2 anulados, 104 pagados, 14 vencidos,
- * $32.476.000 recaudados, 88,1 %).
- *
- * El Anexo 9 permite "generar más datos de prueba coherentes con estos totales". Aquí se
- * genera SOLO lo que falta: a cada total del anexo se le restan los compromisos de septiembre
- * que ya existen en los datos de ejemplo (por ejemplo, CP-2026-0106 de Luis en Altos del Maipo).
- *
- * Las personas generadas ("Persona de prueba 0001"…) quedan con activo = false para que no
- * aparezcan en la selección de sesión; solo se ven desde el panel del ejecutivo.
- */
 object CobranzaSeptiembreSintetica {
-
     private data class Cartera(
         val idEmpresa: String,
         val total: Int,
@@ -32,11 +18,6 @@ object CobranzaSeptiembreSintetica {
         val recargo: Double
     )
 
-    // Totales del anexo MENOS lo que ya existe en septiembre en los datos de ejemplo:
-    // EC-01: CP-2026-0106 (vencido).                 EC-02: CP-2026-0098 (pagado $185.000).
-    // EC-03: CP-2026-0104 (pagado $86.400) y CP-2026-0111 (anulado).
-    // EC-06: CP-2026-0090 ($17.000), historial de UF-07 ($15.000) y CP-2026-0095 (en revisión, cuenta como impago).
-    // EC-07: historial de UF-04, arancel 7/10 ($142.000).  EC-08: CP-2026-0089 ($520.000).
     private val carteras = listOf(
         Cartera("EC-01", 119, 2, 104, 13, 32_476_000, "Cuota pie departamento", "EJ-01", 8500.0),
         Cartera("EC-02", 309, 1, 295, 13, 54_650_000, "Mensualidad septiembre", "EJ-02", 5000.0),
@@ -79,7 +60,6 @@ object CobranzaSeptiembreSintetica {
                 val venc = "2026-09-%02d".format(dia)
                 val esPagado = i <= c.pagados
                 val esAnulado = !esPagado && i <= c.pagados + c.anulados
-                // El último pagado absorbe el resto para que la suma sea exacta
                 val monto = (if (esPagado && i == c.pagados) base + resto else base).toDouble()
                 val estado = when {
                     esPagado -> "Pagado"
@@ -103,7 +83,7 @@ object CobranzaSeptiembreSintetica {
                     fechaAnulacion = if (esAnulado) "2026-09-0${1 + i % 9}" else null
                 )
                 if (esPagado) {
-                    val num = "CPS-$codigo-$n" // prefijo distinto de CPR- para no afectar el correlativo
+                    val num = "CPS-$codigo-$n"
                     pagos += PagoEntity(
                         idPago = num,
                         numeroComprobante = num,

@@ -12,10 +12,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** RF-11 / RN-15 / HU-07: avisos de vencimiento personalizados. */
 class AvisosTest {
-
-    // Compromisos de Camila (UF-01) del Anexo 9
     private val arriendo = CompromisoEntity("CP-2026-0101", "CP-2026-0101", "UF-01", "EC-08", "Arriendo departamento octubre", 10, 12, 520000.0, "2026-10-10", "Pendiente")
     private val club = CompromisoEntity("CP-2026-0102", "CP-2026-0102", "UF-01", "EC-06", "Cuota social octubre", 10, 12, 15000.0, "2026-10-05", "Vencido", 2000.0)
     private val aporte = CompromisoEntity("CP-2026-0103", "CP-2026-0103", "UF-01", "EC-05", "Aporte mensual octubre", null, null, 10000.0, "2026-10-15", "Pendiente")
@@ -47,7 +44,6 @@ class AvisosTest {
 
     @Test
     fun venceHoyTienePrioridadYEsUnoPorCompromiso() {
-        // con anticipación 0 no aplica; el 10-10 el arriendo vence hoy
         val avisos = ReglasAvisos.avisosDelDia(true, 3, todos, nombre, hoy = "2026-10-10")
         assertEquals(1, avisos.count { it.idCompromiso == "CP-2026-0101" })
         assertEquals(Tipo.VENCE_HOY, avisos.first { it.idCompromiso == "CP-2026-0101" }.tipo)
@@ -59,7 +55,6 @@ class AvisosTest {
         assertEquals(Tipo.VENCIDO, dia1.single().tipo)
         assertTrue(dia1.single().mensaje.startsWith("Te falta"))
         assertTrue("incluye recargo", dia1.single().mensaje.contains("17.000"))
-        // al día siguiente ya no se repite (no saturar)
         assertTrue(ReglasAvisos.avisosDelDia(true, 3, listOf(club), nombre, hoy = "2026-10-07").isEmpty())
     }
 
@@ -75,12 +70,9 @@ class AvisosTest {
     fun fechaDelAviso() {
         assertEquals("2026-10-07", ReglasAvisos.fechaDelAviso(arriendo, 3, hoy = "2026-10-06"))
         assertEquals("2026-10-05", ReglasAvisos.fechaDelAviso(arriendo, 5, hoy = "2026-10-05"))
-        // la anticipación ya pasó: queda el aviso del mismo día del vencimiento
         assertEquals("2026-10-10", ReglasAvisos.fechaDelAviso(arriendo, 5, hoy = "2026-10-06"))
         assertNull(ReglasAvisos.fechaDelAviso(club, 3, hoy = "2026-10-06"))
     }
-
-    // ---------------- Aclaración 3 (media): pago registrado y reporte resuelto
 
     @Test
     fun pagoRegistradoHoyPorCualquierCanal() {
@@ -89,7 +81,7 @@ class AvisosTest {
         val avisos = ReglasAvisos.avisosDeNovedades(true, listOf(pago, antiguo), todos.associateBy { it.idCompromiso }, emptyList(), nombre, hoy = "2026-10-06")
         val a = avisos.single()
         assertEquals(Tipo.PAGO_REGISTRADO, a.tipo)
-        assertEquals("pago|CPR-000454", a.clave) // clave propia: no compite con el aviso de vencimiento
+        assertEquals("pago|CPR-000454", a.clave)
         assertTrue(a.mensaje.contains("Portal de pagos"))
     }
 
@@ -107,8 +99,6 @@ class AvisosTest {
         val pago = PagoEntity("CPR-000454", "CPR-000454", "CP-2026-0101", "2026-10-06 12:30", 520000.0)
         assertTrue(ReglasAvisos.avisosDeNovedades(false, listOf(pago), todos.associateBy { it.idCompromiso }, emptyList(), nombre, hoy = "2026-10-06").isEmpty())
     }
-
-    // ---------------- RNF-02: formato de montos
 
     @Test
     fun formatoPesosChilenos() {

@@ -1,5 +1,3 @@
-# Uso: python3 tools/gen_historial.py app/src/main/java/cl/duocuc/pagoflex/data/seed/HistorialSintetico.kt
-"""Genera HistorialSintetico.kt (datos literales) y verifica el indicador RN-10 contra el Anexo 9."""
 import calendar, sys
 from datetime import date, timedelta
 
@@ -14,20 +12,19 @@ def ym(y, m, d):
     last = calendar.monthrange(y, m)[1]
     return date(y, m, min(d, last))
 
-def meses(desde, hasta):  # (y,m) inclusive
+def meses(desde, hasta):
     y, m = desde
     while (y, m) <= hasta:
         yield y, m
         m += 1
         if m == 13: y, m = y + 1, 1
 
-items = []  # dict(user, emp, concepto, cuota, total, monto, venc, late)
+items = []
 def add(user, emp, base, monto, venc, cuota=None, total=None, mes_en_concepto=True, late=False):
     concepto = f"{base} {MESES[venc.month-1]} {venc.year}" if mes_en_concepto else base
     items.append(dict(user=user, emp=emp, concepto=concepto, cuota=cuota, total=total,
                       monto=monto, venc=venc, late=late))
 
-# ---- UF-01 Camila: 31 considerados, 30 a tiempo
 for i, (y, m) in enumerate([(2025,11),(2025,12)] + list(meses((2026,1),(2026,8)))):
     cuota = 11 + i if i < 2 else i - 1
     add("UF-01","EC-08","Arriendo departamento",520000, ym(y,m,10), cuota, 12)
@@ -37,12 +34,10 @@ for y, m in meses((2026,4),(2026,8)):
 for c, (y, m) in enumerate(meses((2026,3),(2026,8)), start=1):
     add("UF-01","EC-03","Crédito de consumo",86400, ym(y,m,25), c, 24, mes_en_concepto=False)
 
-# ---- UF-02 Luis: 10 sintéticos, 8 a tiempo (cuotas 3..12/36, fin de mes)
 for c, (y, m) in enumerate(meses((2025,10),(2026,7)), start=3):
     add("UF-02","EC-01","Cuota pie departamento",310000, ym(y,m,31), c, 36,
         mes_en_concepto=False, late=c in (6, 10))
 
-# ---- UF-03 Rosa: 27 sintéticos, todos a tiempo
 for i, (y, m) in enumerate([(2025,11),(2025,12)] + list(meses((2026,1),(2026,9)))):
     cuota = 11 + i if i < 2 else i - 1
     add("UF-03","EC-04","Seguro de hogar",18900, ym(y,m,1), cuota, 12)
@@ -51,11 +46,9 @@ for y, m in meses((2025,11),(2026,9)):
 for y, m in meses((2026,5),(2026,9)):
     add("UF-03","EC-04","Seguro de salud complementario",12500, ym(y,m,1))
 
-# ---- UF-04 Matías: 7, 6 a tiempo (arancel 1..7/10)
 for c, (y, m) in enumerate(meses((2026,3),(2026,9)), start=1):
     add("UF-04","EC-07","Arancel",142000, ym(y,m,5), c, 10, late=c == 4)
 
-# ---- UF-05 Fernanda: 19, 18 a tiempo
 for base, late_mes in (("Mensualidad", None), ("Mensualidad segundo hijo", (2025,11))):
     for c, (y, m) in zip((8,9,10), meses((2025,10),(2025,12))):
         add("UF-05","EC-02",base,185000, ym(y,m,10), c, 10, late=(y,m)==late_mes)
@@ -63,18 +56,15 @@ for base, late_mes in (("Mensualidad", None), ("Mensualidad segundo hijo", (2025
         add("UF-05","EC-02",base,185000, ym(y,m,10), c, 10)
 add("UF-05","EC-02","Matrícula 2026",210000, date(2026,2,27), mes_en_concepto=False)
 
-# ---- UF-06 Héctor: 14, 12 a tiempo
 for c, (y, m) in enumerate(meses((2025,10),(2026,8)), start=8):
     add("UF-06","EC-03","Crédito de consumo",54200, ym(y,m,20), c, 36,
         mes_en_concepto=False, late=c in (10, 15))
 for y, m in meses((2026,6),(2026,8)):
     add("UF-06","EC-04","Seguro de hogar",16500, ym(y,m,1))
 
-# ---- UF-07 Javiera: 4, todos a tiempo
 for c, (y, m) in enumerate(meses((2026,6),(2026,9)), start=6):
     add("UF-07","EC-06","Cuota social",15000, ym(y,m,5), c, 12)
 
-# ---- folios, pagos y comprobantes (CPR-000001.. en orden de vencimiento, todos < CPR-000377)
 items.sort(key=lambda x: (x["venc"], x["user"], x["emp"]))
 for n, it in enumerate(items, start=1):
     it["folio"] = f"CP-H-{n:04d}"
@@ -88,11 +78,9 @@ for n, it in enumerate(items, start=1):
                       canal=["Portal de pagos", "Agente conversacional"][n % 2], atiempo=not it["late"])
     assert it["pago"]["num"] < "CPR-000377"
 
-# ---- unicidad RN-20 (usuario, empresa, concepto, cuota)
 keys = [(i["user"], i["emp"], i["concepto"], i["cuota"]) for i in items]
 assert len(keys) == len(set(keys)), "duplicado"
 
-# ---- datos explícitos del Anexo 9 relevantes al indicador (estado, venc, fecha pago)
 explicit = [
  ("UF-01","Pendiente","2026-10-10",None),("UF-01","Vencido","2026-10-05",None),
  ("UF-01","Pendiente","2026-10-15",None),("UF-01","Pagado","2026-09-25","2026-09-24"),
@@ -100,7 +88,6 @@ explicit = [
  ("UF-02","Pendiente","2026-10-30",None),("UF-03","Pagado","2026-10-01","2026-09-30"),
  ("UF-04","En revisión","2026-10-05",None),("UF-05","Pendiente","2026-10-10",None),
  ("UF-06","Anulado","2026-09-20",None),("UF-07","Pagado","2026-10-05","2026-10-04"),
- # septiembre (agregados en este paso)
  ("UF-02","Pagado","2026-08-31","2026-09-02"),("UF-01","Pagado","2026-09-10","2026-09-09"),
  ("UF-01","Pagado","2026-09-05","2026-09-07"),("UF-01","Pagado","2026-09-15","2026-09-15"),
  ("UF-05","Pagado","2026-09-10","2026-09-10"),
@@ -126,22 +113,11 @@ for u, (n_e, a_e, p_e) in esperado.items():
 print("total sintéticos:", len(items))
 assert ok
 
-# ---- emitir Kotlin
 def kstr(s): return '"' + s.replace('"','\\"') + '"'
 out = ["package cl.duocuc.pagoflex.data.seed", "",
  "import cl.duocuc.pagoflex.data.local.entities.CompromisoEntity",
  "import cl.duocuc.pagoflex.data.local.entities.PagoEntity", "",
- "/**",
- " * Historial sintético de los últimos 12 meses (archivo generado, no editar a mano).",
- " *",
- " * El Anexo 9 entrega solo los compromisos de sep–oct 2026 y un resumen de cumplimiento",
- " * por persona (ej. UF-01: 36 compromisos considerados, 33 a tiempo). Para que el indicador",
- " * se CALCULE (RN-10, MER 2.3) y dé esos mismos valores, se agregan compromisos ya pagados",
- " * de meses anteriores, como permite la nota del Anexo 9 (\"los equipos pueden generar más",
- " * datos de prueba coherentes con estos totales\"). Folios CP-H-xxxx; comprobantes",
- " * CPR-000001… (anteriores al primero del anexo, CPR-000377).",
- " */",
- "object HistorialSintetico {", "",
+ "object HistorialSintetico {",
  "    val compromisos: List<CompromisoEntity> = listOf("]
 cl, pl = [], []
 for it in items:

@@ -7,7 +7,6 @@ import androidx.room.Query
 import cl.duocuc.pagoflex.data.local.entities.*
 import kotlinx.coroutines.flow.Flow
 
-/** Lectura y carga de catálogos. IGNORE: agregar un valor que ya existe no hace nada. */
 @Dao
 interface CatalogoDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertRoles(items: List<RolEntity>)
