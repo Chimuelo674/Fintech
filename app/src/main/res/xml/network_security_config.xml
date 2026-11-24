@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Los microservicios corren en el PC con http (sin https), así que se permite
+    tráfico sin cifrar. mindicador.cl sí se consume por https.
+    En una app publicada de verdad, el servidor tendría https y esto no haría falta.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

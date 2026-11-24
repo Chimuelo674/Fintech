@@ -35,4 +35,7 @@ interface CompromisoDao {
 
     @Update
     suspend fun updateCompromiso(compromiso: CompromisoEntity)
+
+    @Upsert
+    suspend fun upsertCompromisos(compromisos: List<CompromisoEntity>)
 }

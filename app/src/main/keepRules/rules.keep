@@ -1,1 +1,3 @@
-
+# Los objetos JSON (DTO) se leen por reflexión con Gson: no se deben renombrar.
+-keep class cl.duocuc.pagoflex.data.remote.** { *; }
+-keepattributes Signature, *Annotation*

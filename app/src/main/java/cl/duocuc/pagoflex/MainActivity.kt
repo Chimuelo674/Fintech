@@ -1,7 +1,6 @@
 package cl.duocuc.pagoflex
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -10,21 +9,44 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
+import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.lifecycleScope
 import cl.duocuc.pagoflex.avisos.ServicioAvisos
 import cl.duocuc.pagoflex.data.local.PagoFlexDatabase
+import cl.duocuc.pagoflex.data.remote.ClienteHttp
+import cl.duocuc.pagoflex.data.remote.ConfigServidor
+import cl.duocuc.pagoflex.data.remote.RoomAlmacenLocal
+import cl.duocuc.pagoflex.data.remote.SincronizadorRemoto
+import cl.duocuc.pagoflex.data.seed.InitialDataSeeder
 import cl.duocuc.pagoflex.repository.PagoFlexRepository
 import cl.duocuc.pagoflex.ui.navigation.PagoFlexNavigation
 import cl.duocuc.pagoflex.ui.theme.PagoFlexTheme
 import cl.duocuc.pagoflex.ui.theme.TemaPreferencia
+import kotlinx.coroutines.launch
 
-class MainActivity : ComponentActivity() {
+// FragmentActivity (en vez de ComponentActivity) es necesaria para el ingreso con huella.
+class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         TemaPreferencia.init(applicationContext)
         enableEdgeToEdge()
 
+        ConfigServidor.init(applicationContext)
+
         val database = PagoFlexDatabase.getDatabase(applicationContext)
-        val repository = PagoFlexRepository(database)
+        // Conexión con los microservicios usuarios-service y pagos-service (Retrofit).
+        val sincronizador = SincronizadorRemoto(
+            usuariosApi = { ClienteHttp.usuariosApi() },
+            pagosApi = { ClienteHttp.pagosApi() },
+            local = RoomAlmacenLocal(database)
+        )
+        val repository = PagoFlexRepository(database, sincronizador)
+
+        // Al abrir la app: datos de prueba locales (si es la primera vez) y luego sincronización con el servidor.
+        lifecycleScope.launch {
+            InitialDataSeeder.seedDatabase(database)
+            repository.sincronizarConServidor()
+        }
 
         ServicioAvisos.programar(applicationContext)
 

@@ -38,4 +38,10 @@ interface PagoDao {
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertPago(pago: PagoEntity)
+
+    @Query("SELECT * FROM pago")
+    suspend fun getAllPagosOnce(): List<PagoEntity>
+
+    @Upsert
+    suspend fun upsertPagos(pagos: List<PagoEntity>)
 }

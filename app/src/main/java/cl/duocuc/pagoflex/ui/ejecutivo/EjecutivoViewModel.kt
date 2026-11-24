@@ -43,7 +43,7 @@ class EjecutivoViewModel(
 
     init {
         viewModelScope.launch {
-            repo.sincronizarEstados()
+            repo.sincronizarConServidor()
             empresa.value = repo.getEmpresaById(idEmpresa)
         }
     }

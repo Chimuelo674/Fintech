@@ -26,4 +26,8 @@ interface UsuarioDao {
 
     @Update
     suspend fun updateUsuario(usuario: UsuarioEntity)
+
+    /** Inserta o actualiza (sincronización con usuarios-service). */
+    @Upsert
+    suspend fun upsertUsuarios(usuarios: List<UsuarioEntity>)
 }

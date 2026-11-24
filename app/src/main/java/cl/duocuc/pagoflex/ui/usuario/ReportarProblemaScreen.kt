@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -55,6 +56,7 @@ fun ReportarProblemaScreen(
     var aviso by remember { mutableStateOf<String?>(null) }
     var destacado by remember { mutableStateOf(idCompromisoInitial) }
     var yaRevisado by remember { mutableStateOf(false) }
+    var aEliminar by remember { mutableStateOf<ReporteEntity?>(null) }
 
     LaunchedEffect(reportes, compromisos) {
         val lista = reportes ?: return@LaunchedEffect
@@ -141,10 +143,28 @@ fun ReportarProblemaScreen(
                     reporte = r,
                     compromiso = compromisoMap[r.idCompromiso],
                     empresa = compromisoMap[r.idCompromiso]?.let { empresaMap[it.idEmpresa] },
-                    destacado = r.idCompromiso == destacado && r.estado != "Resuelto"
+                    destacado = r.idCompromiso == destacado && r.estado != "Resuelto",
+                    onEliminar = if (r.estado == "Abierto") ({ aEliminar = r }) else null
                 )
             }
         }
+    }
+
+    aEliminar?.let { r ->
+        AlertDialog(
+            onDismissRequest = { aEliminar = null },
+            title = { Text("¿Eliminar el reporte ${r.idReporte}?") },
+            text = {
+                Text("Si lo eliminas, el cobro deja de estar En revisión y vuelve a estar disponible para pagar.")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.eliminarReporte(r.idReporte)
+                    aEliminar = null
+                }) { Text("Eliminar", color = c.vencidoFg) }
+            },
+            dismissButton = { TextButton(onClick = { aEliminar = null }) { Text("Cancelar") } }
+        )
     }
 
     aReportar?.let { comp ->
@@ -225,7 +245,9 @@ fun ReporteCardItem(
     reporte: ReporteEntity,
     compromiso: CompromisoEntity?,
     empresa: EmpresaEntity?,
-    destacado: Boolean = false
+    destacado: Boolean = false,
+    /** Solo para reportes Abiertos: el usuario los puede eliminar. */
+    onEliminar: (() -> Unit)? = null
 ) {
     val c = PF.colors
     val (statusBg, statusFg) = PF.estado(reporte.estado)
@@ -268,7 +290,16 @@ fun ReporteCardItem(
             HorizontalDivider(color = c.divider, modifier = Modifier.padding(vertical = 6.dp))
 
             when (reporte.estado) {
-                "Abierto" -> Text("Recibimos tu reporte. Un agente lo revisará pronto.", fontSize = 13.sp, color = c.textStrong)
+                "Abierto" -> {
+                    Text("Recibimos tu reporte. Un agente lo revisará pronto.", fontSize = 13.sp, color = c.textStrong)
+                    if (onEliminar != null) {
+                        TextButton(onClick = onEliminar, contentPadding = PaddingValues(horizontal = 0.dp)) {
+                            Icon(Icons.Default.Delete, contentDescription = null, tint = c.vencidoFg, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Eliminar reporte", color = c.vencidoFg, fontSize = 13.sp)
+                        }
+                    }
+                }
                 "En gestión" -> Text("Un agente de soporte está revisando tu caso.", fontSize = 13.sp, color = c.textStrong)
                 else -> {
                     Text("Respuesta de soporte", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = c.pagadoFg)

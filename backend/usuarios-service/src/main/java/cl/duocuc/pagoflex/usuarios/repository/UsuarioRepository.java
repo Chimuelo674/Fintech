@@ -1,0 +1,11 @@
+package cl.duocuc.pagoflex.usuarios.repository;
+
+import cl.duocuc.pagoflex.usuarios.model.Usuario;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+
+public interface UsuarioRepository extends JpaRepository<Usuario, String> {
+    List<Usuario> findByIdRol(String idRol);
+    boolean existsByCorreoIgnoreCase(String correo);
+}

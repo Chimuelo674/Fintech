@@ -1,35 +1,48 @@
 package cl.duocuc.pagoflex.ui.usuario
 
+import android.content.Context
+import android.content.Intent
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.platform.LocalContext
-import android.content.Context
-import android.content.Intent
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cl.duocuc.pagoflex.data.local.entities.CompromisoEntity
 import cl.duocuc.pagoflex.data.local.entities.EmpresaEntity
 import cl.duocuc.pagoflex.data.local.entities.PagoEntity
 import cl.duocuc.pagoflex.data.local.entities.UsuarioEntity
+import cl.duocuc.pagoflex.domain.ReglasAcceso
 import cl.duocuc.pagoflex.repository.PagoFlexRepository
-import cl.duocuc.pagoflex.ui.utils.CurrencyFormatter
-import cl.duocuc.pagoflex.ui.theme.BotonTema
-import cl.duocuc.pagoflex.ui.theme.PF
-import cl.duocuc.pagoflex.util.Fechas
-import cl.duocuc.pagoflex.ui.common.MensajesEnSnackbar
 import cl.duocuc.pagoflex.ui.common.vm
+import cl.duocuc.pagoflex.ui.theme.PF
+import cl.duocuc.pagoflex.ui.utils.CurrencyFormatter
+import cl.duocuc.pagoflex.util.Fechas
 
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * Comprobante estilo banco: check animado, monto destacado, número de operación
+ * y un "ticket" con el detalle, listo para compartir.
+ */
 @Composable
 fun ComprobanteScreen(
     idPago: String,
@@ -43,142 +56,202 @@ fun ComprobanteScreen(
     val pago = ui.pago
     val compromiso = ui.compromiso
     val empresa = ui.empresa
-    val noEncontrado = !ui.cargando && (pago == null || compromiso == null)
+    val c = PF.colors
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Comprobante de Pago", fontWeight = FontWeight.Bold) },
-                colors = PF.barra()
-            )
+    if (pago == null || compromiso == null) {
+        Box(
+            modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            if (!ui.cargando) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("No encontramos este comprobante.", fontWeight = FontWeight.Bold, color = c.textStrong)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(onClick = onBackToHome) { Text("Volver al inicio") }
+                }
+            } else {
+                CircularProgressIndicator()
+            }
         }
-    ) { paddingValues ->
-        val currentPago = pago
-        val currentCompromiso = compromiso
+        return
+    }
 
-        if (currentPago == null || currentCompromiso == null) {
-            Box(
-                modifier = Modifier.fillMaxSize().padding(paddingValues).padding(24.dp),
-                contentAlignment = Alignment.Center
+    val rutOculto = ReglasAcceso.enmascararRut(usuario.rut)
+    val recargo = (pago.montoPagado - compromiso.monto).coerceAtLeast(0.0)
+    val nombreEmpresa = empresa?.nombreFantasia ?: compromiso.idEmpresa
+
+    // Animación del check al abrir el comprobante.
+    var mostrado by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { mostrado = true }
+    val escala by animateFloatAsState(
+        targetValue = if (mostrado) 1f else 0.4f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        label = "check"
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .verticalScroll(rememberScrollState())
+    ) {
+        // ---------- Encabezado de éxito ----------
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(c.header, RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp))
+                .statusBarsPadding()
+                .padding(start = 24.dp, end = 24.dp, top = 28.dp, bottom = 64.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Surface(
+                shape = CircleShape,
+                color = c.accent,
+                modifier = Modifier.size(76.dp).scale(escala)
             ) {
-                if (noEncontrado) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("No encontramos este comprobante.", fontWeight = FontWeight.Bold)
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Button(onClick = onBackToHome) { Text("Volver al inicio") }
-                    }
-                } else {
-                    CircularProgressIndicator()
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.Check, contentDescription = null, tint = c.onAccent, modifier = Modifier.size(46.dp))
                 }
             }
-        } else {
-            val rutPartes = usuario.rut.split("-")
-            val rutOculto = if (rutPartes.size == 2) {
-                "${rutPartes[0].substringBefore(".")}.*.*-${rutPartes[1]}"
-            } else usuario.rut
+            Spacer(Modifier.height(16.dp))
+            Text("¡Pago exitoso!", color = c.onHeader, fontWeight = FontWeight.ExtraBold, fontSize = 24.sp)
+            Text(
+                "Tu pago a $nombreEmpresa fue recibido",
+                color = c.onHeaderMuted,
+                fontSize = 14.sp,
+                textAlign = TextAlign.Center
+            )
+            Spacer(Modifier.height(14.dp))
+            Text(
+                CurrencyFormatter.formatCLP(pago.montoPagado),
+                color = c.onHeader,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 36.sp
+            )
+        }
 
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.SpaceBetween,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Card(
-                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(20.dp)) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(
-                                Icons.Default.CheckCircle,
-                                contentDescription = null,
-                                tint = PF.colors.pagadoFg,
-                                modifier = Modifier.size(36.dp)
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column {
-                                Text("Pago Confirmado", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = PF.colors.pagadoFg)
-                                Text("N° ${currentPago.numeroComprobante}", fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
-                            }
-                        }
+        // ---------- Ticket con el detalle ----------
+        Card(
+            shape = RoundedCornerShape(22.dp),
+            colors = CardDefaults.cardColors(containerColor = c.card),
+            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .offset(y = (-44).dp)
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text("N° de operación", color = c.textMuted, fontSize = 12.sp)
+                Text(pago.numeroComprobante, color = c.textStrong, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
+                Text(Fechas.mostrar(pago.fechaHora), color = c.textMuted, fontSize = 13.sp)
 
-                        Spacer(modifier = Modifier.height(16.dp))
-                        HorizontalDivider()
-                        Spacer(modifier = Modifier.height(16.dp))
+                LineaPunteada(Modifier.padding(vertical = 16.dp))
 
-                        ReceiptRow("Fecha y hora:", Fechas.mostrar(currentPago.fechaHora))
-                        ReceiptRow("Pagado por:", "${usuario.nombreCompleto} · RUT $rutOculto")
-                        ReceiptRow(
-                            "Empresa:",
-                            empresa?.let { "${it.nombreFantasia} (${it.razonSocial})" } ?: currentCompromiso.idEmpresa
+                ReceiptRow("Pagado a", nombreEmpresa)
+                empresa?.razonSocial?.let { ReceiptRow("Razón social", it) }
+                ReceiptRow(
+                    "Concepto",
+                    compromiso.concepto + (compromiso.numeroCuota?.let { " (cuota $it/${compromiso.totalCuotas ?: "?"})" } ?: "")
+                )
+                ReceiptRow("Folio", compromiso.folio)
+                ReceiptRow("Vencimiento", Fechas.mostrar(compromiso.fechaVencimiento))
+
+                LineaPunteada(Modifier.padding(vertical = 16.dp))
+
+                ReceiptRow("Monto de la cuota", CurrencyFormatter.formatCLP(compromiso.monto))
+                if (recargo > 0) ReceiptRow("Recargo por atraso", CurrencyFormatter.formatCLP(recargo))
+                ReceiptRow("Total pagado", CurrencyFormatter.formatCLP(pago.montoPagado), isBold = true)
+
+                LineaPunteada(Modifier.padding(vertical = 16.dp))
+
+                ReceiptRow("Medio de pago", pago.medioPago)
+                ReceiptRow("Canal", pago.canal)
+                ReceiptRow("Pagado por", usuario.nombreCompleto)
+                ReceiptRow("RUT", rutOculto)
+
+                Spacer(Modifier.height(16.dp))
+                Surface(shape = RoundedCornerShape(12.dp), color = c.pagadoBg, modifier = Modifier.fillMaxWidth()) {
+                    Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = c.pagadoFg, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "Comprobante válido. Puedes volver a verlo en Movimientos.",
+                            color = c.pagadoFg,
+                            fontSize = 12.sp
                         )
-                        ReceiptRow("Folio compromiso:", currentCompromiso.folio)
-                        ReceiptRow("Concepto:", "${currentCompromiso.concepto}${currentCompromiso.numeroCuota?.let { " (Cuota $it/${currentCompromiso.totalCuotas ?: "?"})" } ?: ""}")
-                        ReceiptRow("Vencimiento:", Fechas.mostrar(currentCompromiso.fechaVencimiento))
-                        ReceiptRow("Monto cuota:", CurrencyFormatter.formatCLP(currentCompromiso.monto))
-                        ReceiptRow("Recargo por atraso:", CurrencyFormatter.formatCLP((currentPago.montoPagado - currentCompromiso.monto).coerceAtLeast(0.0)))
-
-                        Spacer(modifier = Modifier.height(8.dp))
-                        HorizontalDivider()
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        ReceiptRow("Total pagado:", CurrencyFormatter.formatCLP(currentPago.montoPagado), isBold = true)
-                        ReceiptRow("Medio de pago:", currentPago.medioPago)
-                        ReceiptRow("Canal:", currentPago.canal)
                     }
                 }
+            }
+        }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = {
-                            compartirComprobante(
-                                context,
-                                textoComprobante(currentPago, currentCompromiso, empresa, "${usuario.nombreCompleto} · RUT $rutOculto")
-                            )
-                        },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Compartir")
-                    }
-
-                    Button(
-                        onClick = onBackToHome,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("Ir al Inicio", fontWeight = FontWeight.Bold)
-                    }
-                }
+        // ---------- Acciones ----------
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .offset(y = (-28).dp)
+                .padding(horizontal = 16.dp)
+                .navigationBarsPadding(),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            OutlinedButton(
+                onClick = {
+                    compartirComprobante(
+                        context,
+                        textoComprobante(pago, compromiso, empresa, "${usuario.nombreCompleto} · RUT $rutOculto")
+                    )
+                },
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth().height(52.dp)
+            ) {
+                Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp), tint = c.textStrong)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Compartir comprobante", color = c.textStrong, fontWeight = FontWeight.Bold)
+            }
+            Button(
+                onClick = onBackToHome,
+                colors = ButtonDefaults.buttonColors(containerColor = c.accent, contentColor = c.onAccent),
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth().height(52.dp)
+            ) {
+                Text("Volver al inicio", fontWeight = FontWeight.Bold, fontSize = 15.sp)
             }
         }
     }
 }
 
+/** Línea punteada que separa las secciones del ticket. */
+@Composable
+private fun LineaPunteada(modifier: Modifier = Modifier) {
+    val color = PF.colors.divider
+    Canvas(modifier = modifier.fillMaxWidth().height(1.dp)) {
+        drawLine(
+            color = color,
+            start = Offset(0f, 0f),
+            end = Offset(size.width, 0f),
+            strokeWidth = 2f,
+            pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 10f), 0f)
+        )
+    }
+}
+
 @Composable
 fun ReceiptRow(label: String, value: String, isBold: Boolean = false) {
+    val c = PF.colors
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
+            .padding(vertical = 5.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Top
     ) {
-        Text(text = label, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(text = label, fontSize = 13.sp, color = c.textMuted, modifier = Modifier.padding(end = 12.dp))
         Text(
             text = value,
-            fontSize = 13.sp,
-            fontWeight = if (isBold) FontWeight.Bold else FontWeight.Medium,
-            color = if (isBold) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+            fontSize = if (isBold) 15.sp else 13.sp,
+            fontWeight = if (isBold) FontWeight.ExtraBold else FontWeight.Medium,
+            color = c.textStrong,
+            textAlign = TextAlign.End,
+            modifier = Modifier.weight(1f)
         )
     }
 }

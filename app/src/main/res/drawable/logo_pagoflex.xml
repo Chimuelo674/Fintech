@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Logo PagoFlex para usar dentro de la app (encabezado del login).
+     Es el mismo diseño del ícono, pero recortado para que la "P" se vea grande. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="64dp"
+    android:height="64dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+    <group
+        android:translateX="-22.25"
+        android:translateY="-23.0">
+        <path android:pathData="M0,0h108v108h-108z">
+            <aapt:attr name="android:fillColor">
+                <gradient
+                    android:type="linear"
+                    android:startX="22.25"
+                    android:startY="23"
+                    android:endX="86.25"
+                    android:endY="87"
+                    android:startColor="#063B34"
+                    android:endColor="#007A6C" />
+            </aapt:attr>
+        </path>
+        <path
+            android:pathData="M40,37 L40,73"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="10"
+            android:strokeLineCap="round" />
+        <path
+            android:pathData="M40,37 L56,37 A9,9 0 0 1 56,55 L46,55"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="10"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <path
+            android:pathData="M51,74 Q63,74 69,62"
+            android:strokeColor="#3DDC97"
+            android:strokeWidth="6"
+            android:strokeLineCap="round" />
+        <path
+            android:pathData="M72.1,55.4 L73.5,65.4 L63.6,60.4 Z"
+            android:fillColor="#3DDC97"
+            android:strokeColor="#3DDC97"
+            android:strokeWidth="1.5"
+            android:strokeLineJoin="round" />
+    </group>
+</vector>

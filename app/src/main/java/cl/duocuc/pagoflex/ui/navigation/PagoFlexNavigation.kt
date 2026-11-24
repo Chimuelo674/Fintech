@@ -13,12 +13,12 @@ import cl.duocuc.pagoflex.avisos.AvisosPrefs
 import cl.duocuc.pagoflex.repository.PagoFlexRepository
 import cl.duocuc.pagoflex.ui.agente.AgenteDashboardScreen
 import cl.duocuc.pagoflex.ui.ejecutivo.EjecutivoDashboardScreen
-import cl.duocuc.pagoflex.ui.session.RoleSelectionScreen
+import cl.duocuc.pagoflex.ui.session.LoginScreen
 import cl.duocuc.pagoflex.ui.session.UserSession
 import cl.duocuc.pagoflex.ui.usuario.*
 
 object Screen {
-    const val RoleSelection = "role_selection"
+    const val Login = "login"
     const val UsuarioDashboard = "usuario_dashboard"
     const val Pago = "pago"
     const val Comprobante = "comprobante"
@@ -27,6 +27,8 @@ object Screen {
     const val ReportarProblema = "reportar_problema"
     const val ConfiguracionAvisos = "configuracion_avisos"
     const val RecomendarOrganizacion = "recomendar_organizacion"
+    const val CobroQr = "cobro_qr"
+    const val Simulador = "simulador"
     const val AgenteDashboard = "agente_dashboard"
     const val EjecutivoDashboard = "ejecutivo_dashboard"
 }
@@ -39,22 +41,19 @@ fun PagoFlexNavigation(repository: PagoFlexRepository) {
 
     NavHost(
         navController = navController,
-        startDestination = Screen.RoleSelection
+        startDestination = Screen.Login
     ) {
-        composable(Screen.RoleSelection) {
-            RoleSelectionScreen(
+        composable(Screen.Login) {
+            LoginScreen(
                 repository = repository,
-                onUserSelected = { user ->
-                    when (user.idRol) {
-                        "USUARIO_FINAL" -> navController.navigate(Screen.UsuarioDashboard) {
-                            popUpTo(Screen.RoleSelection) { inclusive = true }
-                        }
-                        "AGENTE" -> navController.navigate(Screen.AgenteDashboard) {
-                            popUpTo(Screen.RoleSelection) { inclusive = true }
-                        }
-                        "EJECUTIVO" -> navController.navigate(Screen.EjecutivoDashboard) {
-                            popUpTo(Screen.RoleSelection) { inclusive = true }
-                        }
+                onIngreso = { user ->
+                    val destino = when (user.idRol) {
+                        "AGENTE" -> Screen.AgenteDashboard
+                        "EJECUTIVO" -> Screen.EjecutivoDashboard
+                        else -> Screen.UsuarioDashboard
+                    }
+                    navController.navigate(destino) {
+                        popUpTo(Screen.Login) { inclusive = true }
                     }
                 }
             )
@@ -90,10 +89,16 @@ fun PagoFlexNavigation(repository: PagoFlexRepository) {
                     onVerDetalle = { idCompromiso ->
                         navController.navigate("${Screen.DetalleCompromiso}/$idCompromiso")
                     },
+                    onNavigateToCobroQr = {
+                        navController.navigate(Screen.CobroQr)
+                    },
+                    onNavigateToSimulador = {
+                        navController.navigate(Screen.Simulador)
+                    },
                     onLogout = {
                         UserSession.clearSession()
                         AvisosPrefs.guardarUsuario(context, null)
-                        navController.navigate(Screen.RoleSelection) {
+                        navController.navigate(Screen.Login) {
                             popUpTo(0) { inclusive = true }
                         }
                     }
@@ -211,6 +216,21 @@ fun PagoFlexNavigation(repository: PagoFlexRepository) {
             }
         }
 
+        composable(Screen.CobroQr) {
+            val user = currentUser
+            if (user != null) {
+                CobroQrScreen(
+                    usuario = user,
+                    repository = repository,
+                    onBack = { navController.popBackStack() }
+                )
+            }
+        }
+
+        composable(Screen.Simulador) {
+            SimuladorCostosScreen(onBack = { navController.popBackStack() })
+        }
+
         composable(Screen.AgenteDashboard) {
             val user = currentUser
             if (user != null) {
@@ -220,7 +240,7 @@ fun PagoFlexNavigation(repository: PagoFlexRepository) {
                     onLogout = {
                         UserSession.clearSession()
                         AvisosPrefs.guardarUsuario(context, null)
-                        navController.navigate(Screen.RoleSelection) {
+                        navController.navigate(Screen.Login) {
                             popUpTo(0) { inclusive = true }
                         }
                     }
@@ -237,7 +257,7 @@ fun PagoFlexNavigation(repository: PagoFlexRepository) {
                     onLogout = {
                         UserSession.clearSession()
                         AvisosPrefs.guardarUsuario(context, null)
-                        navController.navigate(Screen.RoleSelection) {
+                        navController.navigate(Screen.Login) {
                             popUpTo(0) { inclusive = true }
                         }
                     }

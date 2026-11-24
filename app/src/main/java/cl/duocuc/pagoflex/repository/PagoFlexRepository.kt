@@ -3,12 +3,18 @@ package cl.duocuc.pagoflex.repository
 import androidx.room.withTransaction
 import cl.duocuc.pagoflex.data.local.PagoFlexDatabase
 import cl.duocuc.pagoflex.data.local.entities.*
+import cl.duocuc.pagoflex.data.remote.Cambio
+import cl.duocuc.pagoflex.data.remote.EstadoConexion
+import cl.duocuc.pagoflex.data.remote.ResultadoLogin
+import cl.duocuc.pagoflex.data.remote.SincronizadorRemoto
 import cl.duocuc.pagoflex.domain.ReglasRecomendacion
 import cl.duocuc.pagoflex.domain.ReglasRolesInternos
 import cl.duocuc.pagoflex.util.Fechas
 import cl.duocuc.pagoflex.util.Rut
 import cl.duocuc.pagoflex.util.Reloj
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -22,7 +28,15 @@ data class Cumplimiento(
     val historialSuficiente: Boolean get() = porcentaje != null
 }
 
-class PagoFlexRepository(private val db: PagoFlexDatabase) {
+/**
+ * Repositorio central de la app. Trabaja sobre Room (copia local) y, si recibe un
+ * [SincronizadorRemoto], envía cada cambio a los microservicios usuarios-service y pagos-service.
+ * Sin servidor disponible, la app sigue funcionando con los datos del teléfono.
+ */
+class PagoFlexRepository(
+    private val db: PagoFlexDatabase,
+    private val remoto: SincronizadorRemoto? = null
+) {
     private val usuarioDao = db.usuarioDao()
     private val empresaDao = db.empresaDao()
     private val compromisoDao = db.compromisoDao()
@@ -33,12 +47,46 @@ class PagoFlexRepository(private val db: PagoFlexDatabase) {
     private val historialRecDao = db.historialRecomendacionDao()
     private val catalogoDao = db.catalogoDao()
 
+    // ---------- Conexión con los microservicios ----------
+
+    val estadoConexion: StateFlow<EstadoConexion> =
+        remoto?.estado ?: MutableStateFlow(EstadoConexion.SinConexion("La app está en modo sin servidor."))
+
+    /** Descarga los datos de los microservicios (y les sube los de prueba si están vacíos). */
+    suspend fun sincronizarConServidor(): EstadoConexion? {
+        val resultado = remoto?.sincronizar()
+        sincronizarEstados()
+        return resultado
+    }
+
+    suspend fun probarConexion(): EstadoConexion? = remoto?.probarConexion()
+
+    /** Valida RUT y clave en usuarios-service. Devuelve null si la app no tiene servidor configurado. */
+    suspend fun loginRemoto(rut: String, clave: String): ResultadoLogin? {
+        val resultado = remoto?.login(rut, clave) ?: return null
+        if (resultado is ResultadoLogin.Exitoso) {
+            try {
+                usuarioDao.upsertUsuarios(listOf(resultado.usuario))
+            } catch (_: Exception) {
+                // Si el usuario no calza con la base local, se usa igual la copia del servidor.
+            }
+        }
+        return resultado
+    }
+
+    private suspend fun publicar(vararg cambios: Cambio) {
+        remoto?.publicar(*cambios)
+    }
+
     fun getCatalogoReconocimientos(): Flow<Map<String, String>> =
         catalogoDao.getReconocimientos().map { lista -> lista.associate { it.nombre to it.descripcion } }
 
     fun getAllUsuarios(): Flow<List<UsuarioEntity>> = usuarioDao.getAllUsuarios()
     suspend fun getUsuarioById(id: String): UsuarioEntity? = usuarioDao.getUsuarioById(id)
-    suspend fun updateUsuario(usuario: UsuarioEntity) = usuarioDao.updateUsuario(usuario)
+    suspend fun updateUsuario(usuario: UsuarioEntity) {
+        usuarioDao.updateUsuario(usuario)
+        publicar(Cambio.UsuarioActualizado(usuario))
+    }
 
     fun getAllEmpresas(): Flow<List<EmpresaEntity>> = empresaDao.getAllEmpresas()
     suspend fun getEmpresaById(id: String): EmpresaEntity? = empresaDao.getEmpresaById(id)
@@ -48,16 +96,18 @@ class PagoFlexRepository(private val db: PagoFlexDatabase) {
     suspend fun getCompromisoById(id: String): CompromisoEntity? = compromisoDao.getCompromisoById(id)
 
     suspend fun sincronizarEstados() {
-        db.withTransaction {
+        val vencidos = db.withTransaction {
             val recargos = empresaDao.getAllEmpresasOnce().associate { it.idEmpresa to it.recargoAtraso }
             val aVencer = compromisoDao.getAllCompromisosOnce().filter {
                 it.estado == "Pendiente" && Fechas.estaVencida(it.fechaVencimiento)
             }
-            aVencer.forEach { c ->
-                compromisoDao.updateCompromiso(
-                    c.copy(estado = "Vencido", recargoAplicado = recargos[c.idEmpresa] ?: 0.0)
-                )
+            aVencer.map { c ->
+                c.copy(estado = "Vencido", recargoAplicado = recargos[c.idEmpresa] ?: 0.0)
+                    .also { compromisoDao.updateCompromiso(it) }
             }
+        }
+        if (vencidos.isNotEmpty()) {
+            publicar(*vencidos.map { Cambio.CompromisoActualizado(it) }.toTypedArray())
         }
     }
 
@@ -169,7 +219,11 @@ class PagoFlexRepository(private val db: PagoFlexDatabase) {
                 pagoDao.insertPago(pago)
                 compromisoDao.updateCompromiso(actual.copy(estado = "Pagado"))
                 pago
-            }.let { Result.success(it) }
+            }.let { pago ->
+                // pagos-service registra el pago y deja el compromiso como "Pagado".
+                publicar(Cambio.PagoNuevo(pago))
+                Result.success(pago)
+            }
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -211,14 +265,49 @@ class PagoFlexRepository(private val db: PagoFlexDatabase) {
                 estado = "Abierto"
             )
             reporteDao.insertReporte(reporte)
-            compromisoDao.updateCompromiso(comp.copy(estado = "En revisión"))
-            reporte
-        }.let { Result.success(it) }
+            val enRevision = comp.copy(estado = "En revisión")
+            compromisoDao.updateCompromiso(enRevision)
+            reporte to enRevision
+        }.let { (reporte, compromiso) ->
+            publicar(Cambio.ReporteNuevo(reporte), Cambio.CompromisoActualizado(compromiso))
+            Result.success(reporte)
+        }
     } catch (e: Exception) {
         Result.failure(e)
     }
 
     suspend fun getReporteById(id: String): ReporteEntity? = reporteDao.getReporteById(id)
+
+    /**
+     * El usuario puede eliminar un reporte mientras ningún agente lo haya tomado.
+     * El compromiso vuelve a Pendiente o Vencido según su fecha.
+     */
+    suspend fun eliminarReporte(idUsuario: String, idReporte: String): Result<Unit> = try {
+        db.withTransaction {
+            val r = reporteDao.getReporteById(idReporte) ?: throw IllegalStateException("No encontramos el reporte.")
+            val comp = compromisoDao.getCompromisoById(r.idCompromiso)
+            if (comp == null || comp.idUsuarioFinal != idUsuario) {
+                throw IllegalStateException("Este reporte no es tuyo.")
+            }
+            if (r.estado != "Abierto") {
+                throw IllegalStateException("Solo puedes eliminar un reporte que todavía no toma un agente (este está ${r.estado}).")
+            }
+            reporteDao.deleteReporte(idReporte)
+            if (comp.estado == "En revisión") {
+                restaurarSegunFecha(comp).also { compromisoDao.updateCompromiso(it) }
+            } else null
+        }.let { restaurado ->
+            publicar(
+                *listOfNotNull<Cambio>(
+                    Cambio.ReporteEliminado(idReporte),
+                    restaurado?.let { Cambio.CompromisoActualizado(it) }
+                ).toTypedArray()
+            )
+        }
+        Result.success(Unit)
+    } catch (e: Exception) {
+        Result.failure(e)
+    }
 
     suspend fun tomarReporte(idReporte: String, idAgente: String): Result<Unit> = try {
         db.withTransaction {
@@ -226,7 +315,10 @@ class PagoFlexRepository(private val db: PagoFlexDatabase) {
             if (r.estado != "Abierto") {
                 throw IllegalStateException("Este reporte ya fue tomado por ${r.idAgente ?: "otro agente"}.")
             }
-            reporteDao.updateReporte(r.copy(estado = "En gestión", idAgente = idAgente, fechaToma = Reloj.hoy()))
+            r.copy(estado = "En gestión", idAgente = idAgente, fechaToma = Reloj.hoy())
+                .also { reporteDao.updateReporte(it) }
+        }.let { tomado ->
+            publicar(Cambio.ReporteActualizado(tomado))
         }
         Result.success(Unit)
     } catch (e: Exception) {
@@ -241,14 +333,17 @@ class PagoFlexRepository(private val db: PagoFlexDatabase) {
                 r.idAgente != idAgente -> throw IllegalStateException("Este reporte lo está gestionando ${r.idAgente}.")
                 respuesta.isBlank() -> throw IllegalStateException("Escribe la respuesta para el usuario antes de resolver.")
             }
-            reporteDao.updateReporte(
-                r.copy(estado = "Resuelto", respuesta = respuesta.trim(), fechaResolucion = Reloj.hoy())
-            )
+            val resuelto = r.copy(estado = "Resuelto", respuesta = respuesta.trim(), fechaResolucion = Reloj.hoy())
+            reporteDao.updateReporte(resuelto)
             val comp = compromisoDao.getCompromisoById(r.idCompromiso)
-            if (comp != null && comp.estado == "En revisión") {
-                compromisoDao.updateCompromiso(restaurarSegunFecha(comp))
-            }
-        }
+            val restaurado = if (comp != null && comp.estado == "En revisión") {
+                restaurarSegunFecha(comp).also { compromisoDao.updateCompromiso(it) }
+            } else null
+            listOfNotNull<Cambio>(
+                Cambio.ReporteActualizado(resuelto),
+                restaurado?.let { Cambio.CompromisoActualizado(it) }
+            )
+        }.let { cambios -> publicar(*cambios.toTypedArray()) }
         Result.success(Unit)
     } catch (e: Exception) {
         Result.failure(e)
@@ -364,7 +459,8 @@ class PagoFlexRepository(private val db: PagoFlexDatabase) {
         )?.let { throw IllegalArgumentException(it) }
 
         db.withTransaction {
-            val usuario = buscarUsuarioFinalPorRut(rutUsuarioFinal) ?: crearUsuarioFinal(rutUsuarioFinal, personaNueva)
+            val existente = buscarUsuarioFinalPorRut(rutUsuarioFinal)
+            val usuario = existente ?: crearUsuarioFinal(rutUsuarioFinal, personaNueva)
 
             val existentes = compromisoDao.getCompromisosByUsuarioOnce(usuario.idUsuario)
             if (ReglasRolesInternos.esDuplicado(existentes, usuario.idUsuario, idEmpresa, concepto, cuota)) {
@@ -392,8 +488,15 @@ class PagoFlexRepository(private val db: PagoFlexDatabase) {
                 fechaRegistro = hoy
             )
             compromisoDao.insertCompromiso(comp)
-            comp
-        }.let { Result.success(it) }
+            Triple(comp, usuario, existente == null)
+        }.let { (comp, usuario, usuarioNuevo) ->
+            if (usuarioNuevo) {
+                publicar(Cambio.UsuarioNuevo(usuario), Cambio.CompromisoNuevo(comp))
+            } else {
+                publicar(Cambio.CompromisoNuevo(comp))
+            }
+            Result.success(comp)
+        }
     } catch (e: Exception) {
         Result.failure(e)
     }
@@ -437,15 +540,15 @@ class PagoFlexRepository(private val db: PagoFlexDatabase) {
                 ?: throw IllegalStateException("No encontramos el compromiso.")
             ReglasRolesInternos.validarAnulacion(comp, idEmpresaEjecutivo, motivo, comentario)
                 ?.let { throw IllegalArgumentException(it) }
-            compromisoDao.updateCompromiso(
-                comp.copy(
-                    estado = "Anulado",
-                    motivoAnulacion = motivo,
-                    comentarioAnulacion = comentario.trim().ifBlank { null },
-                    ejecutivoAnulacion = idEjecutivo,
-                    fechaAnulacion = Reloj.hoy()
-                )
-            )
+            comp.copy(
+                estado = "Anulado",
+                motivoAnulacion = motivo,
+                comentarioAnulacion = comentario.trim().ifBlank { null },
+                ejecutivoAnulacion = idEjecutivo,
+                fechaAnulacion = Reloj.hoy()
+            ).also { compromisoDao.updateCompromiso(it) }
+        }.let { anulado ->
+            publicar(Cambio.CompromisoActualizado(anulado))
         }
         Result.success(Unit)
     } catch (e: Exception) {

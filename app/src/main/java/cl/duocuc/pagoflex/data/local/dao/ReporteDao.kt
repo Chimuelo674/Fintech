@@ -38,4 +38,17 @@ interface ReporteDao {
 
     @Update
     suspend fun updateReporte(reporte: ReporteEntity)
+
+    @Query("SELECT * FROM reporte")
+    suspend fun getAllReportesOnce(): List<ReporteEntity>
+
+    @Upsert
+    suspend fun upsertReportes(reportes: List<ReporteEntity>)
+
+    @Query("DELETE FROM reporte WHERE idReporte = :id")
+    suspend fun deleteReporte(id: String)
+
+    /** Borra los reportes que ya no están en el servidor. */
+    @Query("DELETE FROM reporte WHERE idReporte NOT IN (:idsQueQuedan)")
+    suspend fun deleteReportesExcepto(idsQueQuedan: List<String>)
 }

@@ -1,10 +1,12 @@
 package cl.duocuc.pagoflex.ui.agente
 
+import androidx.lifecycle.viewModelScope
 import cl.duocuc.pagoflex.data.local.entities.*
 import cl.duocuc.pagoflex.repository.PagoFlexRepository
 import cl.duocuc.pagoflex.ui.common.BaseViewModel
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.launch
 
 class AgenteViewModel(private val repo: PagoFlexRepository, private val idAgente: String) : BaseViewModel() {
     data class Estado(
@@ -38,6 +40,11 @@ class AgenteViewModel(private val repo: PagoFlexRepository, private val idAgente
             empresas = empresas.associateBy { it.idEmpresa }
         )
     }.comoEstado(Estado())
+
+    init {
+        // Trae los reportes nuevos que los usuarios enviaron desde sus teléfonos.
+        viewModelScope.launch { repo.sincronizarConServidor() }
+    }
 
     fun tomarReporte(idReporte: String) = ejecutar(
         accion = { repo.tomarReporte(idReporte, idAgente) },

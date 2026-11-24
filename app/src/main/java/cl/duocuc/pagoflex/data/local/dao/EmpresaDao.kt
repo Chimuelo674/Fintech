@@ -17,4 +17,7 @@ interface EmpresaDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertEmpresas(empresas: List<EmpresaEntity>)
+
+    @Upsert
+    suspend fun upsertEmpresas(empresas: List<EmpresaEntity>)
 }

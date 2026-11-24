@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import cl.duocuc.pagoflex.avisos.ResultadoAvisos
 import cl.duocuc.pagoflex.avisos.ServicioAvisos
 import cl.duocuc.pagoflex.data.local.entities.*
+import cl.duocuc.pagoflex.data.remote.EstadoConexion
 import cl.duocuc.pagoflex.domain.ReglasRecomendacion
 import cl.duocuc.pagoflex.repository.Cumplimiento
 import cl.duocuc.pagoflex.repository.PagoFlexRepository
@@ -16,27 +17,53 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
-class InicioViewModel(repo: PagoFlexRepository, idUsuario: String) : BaseViewModel() {
+class InicioViewModel(private val repo: PagoFlexRepository, idUsuario: String) : BaseViewModel() {
     data class Estado(
         val compromisos: List<CompromisoEntity> = emptyList(),
         val empresas: Map<String, EmpresaEntity> = emptyMap(),
         val reconocimientos: List<ReconocimientoEntity> = emptyList(),
         val cumplimiento: Cumplimiento? = null,
-        val descripcionReconocimiento: Map<String, String> = emptyMap()
+        val descripcionReconocimiento: Map<String, String> = emptyMap(),
+        /** Pagos del usuario, del más reciente al más antiguo ("Últimos movimientos"). */
+        val pagos: List<PagoEntity> = emptyList()
     )
 
     val estado: StateFlow<Estado> = combine(
-        repo.getCompromisosByUsuario(idUsuario),
-        repo.getAllEmpresas(),
-        repo.getReconocimientosByUsuario(idUsuario),
-        repo.getCumplimiento(idUsuario),
-        repo.getCatalogoReconocimientos()
-    ) { compromisos, empresas, reconocimientos, cumplimiento, catalogo ->
-        Estado(compromisos, empresas.associateBy { it.idEmpresa }, reconocimientos, cumplimiento, catalogo)
+        combine(
+            repo.getCompromisosByUsuario(idUsuario),
+            repo.getAllEmpresas(),
+            repo.getReconocimientosByUsuario(idUsuario),
+            repo.getCumplimiento(idUsuario),
+            repo.getCatalogoReconocimientos()
+        ) { compromisos, empresas, reconocimientos, cumplimiento, catalogo ->
+            Estado(compromisos, empresas.associateBy { it.idEmpresa }, reconocimientos, cumplimiento, catalogo)
+        },
+        repo.getPagosByUsuario(idUsuario)
+    ) { base, pagos ->
+        base.copy(pagos = pagos.sortedByDescending { it.fechaHora })
     }.comoEstado(Estado())
 
+    /** Estado de la conexión con los microservicios (se muestra en el inicio). */
+    val estadoConexion: StateFlow<EstadoConexion> = repo.estadoConexion
+
+    private val _sincronizando = MutableStateFlow(false)
+    val sincronizando: StateFlow<Boolean> = _sincronizando.asStateFlow()
+
     init {
-        viewModelScope.launch { repo.sincronizarEstados() }
+        sincronizar()
+    }
+
+    /** Trae los datos actualizados desde los microservicios. */
+    fun sincronizar() {
+        if (_sincronizando.value) return
+        _sincronizando.value = true
+        viewModelScope.launch {
+            try {
+                repo.sincronizarConServidor()
+            } finally {
+                _sincronizando.value = false
+            }
+        }
     }
 }
 
@@ -169,6 +196,12 @@ class MisReportesViewModel(private val repo: PagoFlexRepository, private val idU
             onTerminar(r.isSuccess)
         }
     }
+
+    /** Elimina un reporte que ningún agente ha tomado (DELETE en pagos-service). */
+    fun eliminarReporte(idReporte: String) = ejecutar(
+        accion = { repo.eliminarReporte(idUsuario, idReporte) },
+        ok = { "Eliminaste el reporte $idReporte. El cobro volvió a quedar disponible para pagar." }
+    )
 }
 
 class RecomendarViewModel(private val repo: PagoFlexRepository, private val idUsuario: String) : BaseViewModel() {
